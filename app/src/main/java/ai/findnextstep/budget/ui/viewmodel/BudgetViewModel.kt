@@ -198,8 +198,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     /** 处理待入账的日薪 */
     fun processPendingDeposits() {
         val newDeposits = salaryService.processPendingDeposits()
+        // 始终持久化 lastDepositDate，因为首次打开未到 12:00 时也会更新它
+        prefs.edit().putString("last_deposit_date", salaryService.lastDepositDate).apply()
         if (newDeposits.isNotEmpty()) {
-            prefs.edit().putString("last_deposit_date", salaryService.lastDepositDate).apply()
             refreshTransactions()
         }
     }

@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.reloadFromDisk()
+        viewModel.processPendingDeposits()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

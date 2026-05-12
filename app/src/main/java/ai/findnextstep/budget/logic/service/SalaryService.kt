@@ -108,9 +108,18 @@ class SalaryService(private val repository: TransactionRepository) {
             checkDate = checkDate.plusDays(1)
         }
 
-        // 更新最后入账日期
-        if (checkDate.isAfter(startCheckDate) || lastDepositDate == null) {
-            lastDepositDate = today.toString()
+        // 更新最后入账日期。
+        // checkDate 是循环结束后第一个未处理的日期：
+        // - 若今天已过 12:00，checkDate == 明天 → 最后处理的是今天
+        // - 若今天未到 12:00，checkDate == 今天 → 最后处理的是昨天
+        // - 若 cycle 完全没进（首次打开且未到 12:00），不做更新
+        val lastSettled = checkDate.minusDays(1)
+        if (!lastSettled.isBefore(startCheckDate)) {
+            // 至少处理了一个日期
+            lastDepositDate = lastSettled.toString()
+        } else if (lastDepositDate == null) {
+            // 首次打开且未到 12:00，标记昨天为已结算，下次打开可补录今天
+            lastDepositDate = today.minusDays(1).toString()
         }
 
         return newDeposits
