@@ -2,9 +2,6 @@ package ai.findnextstep.budget.ui.component
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -18,6 +15,7 @@ import ai.findnextstep.budget.logic.model.Category
 
 /**
  * 类型选择器。网格布局展示所有预定义类型。
+ * 使用非 lazy 布局以免嵌套在可滚动容器中时崩溃。
  */
 @Composable
 fun CategorySelector(
@@ -26,26 +24,35 @@ fun CategorySelector(
     onCategorySelected: (Category) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier) {
+    Column(modifier = modifier.padding(horizontal = 8.dp)) {
         Text(
             text = "选择类型",
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
         )
 
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 80.dp),
-            contentPadding = PaddingValues(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(categories) { category ->
-                CategoryChip(
-                    category = category,
-                    isSelected = category == selectedCategory,
-                    onClick = { onCategorySelected(category) }
-                )
+        // 每行 4 列，手动分行避免 LazyVerticalGrid 嵌套滚动崩溃
+        val columns = 4
+        val rows = categories.chunked(columns)
+        for (row in rows) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (category in row) {
+                    CategoryChip(
+                        category = category,
+                        isSelected = category == selectedCategory,
+                        onClick = { onCategorySelected(category) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                // 填充不足 4 列的行
+                repeat(columns - row.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
@@ -54,7 +61,8 @@ fun CategorySelector(
 private fun CategoryChip(
     category: Category,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val bgColor = if (isSelected) {
         MaterialTheme.colorScheme.primary
@@ -68,7 +76,7 @@ private fun CategoryChip(
     }
 
     Surface(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = bgColor,
         tonalElevation = if (isSelected) 4.dp else 0.dp
