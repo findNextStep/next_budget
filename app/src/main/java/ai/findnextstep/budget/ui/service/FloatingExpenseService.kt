@@ -8,7 +8,16 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.content.pm.ServiceInfo
 import android.os.Build
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import android.os.Bundle
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
@@ -42,7 +51,17 @@ import ai.findnextstep.budget.ui.theme.ExpenseRed
  * 系统级悬浮窗快速记账 Service。
  * 在其他应用之上显示一个可拖动的悬浮气泡，点击后展开为记账面板。
  */
-class FloatingExpenseService : Service() {
+class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwner {
+
+    private val lifecycleRegistry = LifecycleRegistry(this)
+
+    override val lifecycle: Lifecycle
+        get() = lifecycleRegistry
+
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateRegistryController.savedStateRegistry
 
     private lateinit var windowManager: WindowManager
     private var overlayView: FrameLayout? = null
@@ -86,6 +105,7 @@ class FloatingExpenseService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        savedStateRegistryController.performRestore(null)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
 
@@ -97,6 +117,8 @@ class FloatingExpenseService : Service() {
         val prefs = getSharedPreferences("budget_prefs", 0)
         bubbleX = prefs.getInt(PREF_FLOATING_X, 0)
         bubbleY = prefs.getInt(PREF_FLOATING_Y, 300)
+
+        lifecycleRegistry.currentState = Lifecycle.State.STARTED
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -105,7 +127,15 @@ class FloatingExpenseService : Service() {
             return START_NOT_STICKY
         }
 
-        startForeground(NOTIFICATION_ID, buildNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        }
         showOverlay()
         return START_STICKY
     }
@@ -113,6 +143,8 @@ class FloatingExpenseService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        savedStateRegistryController.performSave(Bundle())
+        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         hideOverlay()
         super.onDestroy()
     }
@@ -246,6 +278,8 @@ class FloatingExpenseService : Service() {
         }
 
         overlayView = FrameLayout(this).apply {
+            setViewTreeLifecycleOwner(this@FloatingExpenseService)
+            setSavedStateOwnerReflective(this, this@FloatingExpenseService)
             addView(composeView)
         }
 
@@ -263,6 +297,20 @@ class FloatingExpenseService : Service() {
         }
         overlayView = null
         overlayParams = null
+    }
+
+    /**
+     * 通过反射设置 ViewTreeSavedStateRegistryOwner。
+     * 绕过编译期依赖问题，运行时 savedstate 库必然在 classpath 中。
+     */
+    private fun setSavedStateOwnerReflective(view: android.view.View, owner: SavedStateRegistryOwner) {
+        try {
+            val clazz = Class.forName("androidx.savedstate.ViewTreeSavedStateRegistryOwner")
+            val method = clazz.getMethod("set", android.view.View::class.java, SavedStateRegistryOwner::class.java)
+            method.invoke(null, view, owner)
+        } catch (_: Exception) {
+            // Compose 检测到缺失时仍会崩溃，但新版 savedstate 应正常工作
+        }
     }
 }
 
