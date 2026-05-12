@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import ai.findnextstep.budget.logic.model.Category
 import ai.findnextstep.budget.logic.model.Transaction
 import ai.findnextstep.budget.ui.theme.ExpenseRed
+import ai.findnextstep.budget.ui.theme.categoryBackgroundAlpha
+import ai.findnextstep.budget.ui.theme.categoryForeground
 import ai.findnextstep.budget.ui.theme.IncomeGreen
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
@@ -264,15 +266,17 @@ fun TransactionItem(txn: Transaction, onDelete: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 类型图标
+            val catColor = categoryForeground(txn.category.key, if (txn.isIncome) IncomeGreen else ExpenseRed)
+            val bgAlpha = categoryBackgroundAlpha()
             Surface(
                 shape = CircleShape,
-                color = if (txn.isIncome) IncomeGreen.copy(alpha = 0.15f) else ExpenseRed.copy(alpha = 0.15f),
+                color = catColor.copy(alpha = bgAlpha),
                 modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
                         txn.category.displayName.take(1),
-                        color = if (txn.isIncome) IncomeGreen else ExpenseRed,
+                        color = catColor,
                         fontWeight = FontWeight.Bold
                     )
                 }

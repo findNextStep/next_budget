@@ -12,6 +12,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.findnextstep.budget.logic.model.Category
+import ai.findnextstep.budget.ui.theme.categoryBackgroundAlpha
+import ai.findnextstep.budget.ui.theme.categoryForeground
 
 /**
  * 类型选择器。网格布局展示所有预定义类型。
@@ -64,15 +66,17 @@ private fun CategoryChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val catColor = categoryForeground(category.key, MaterialTheme.colorScheme.primary)
+    val bgAlpha = categoryBackgroundAlpha()
     val bgColor = if (isSelected) {
-        MaterialTheme.colorScheme.primary
+        catColor
     } else {
-        MaterialTheme.colorScheme.surfaceVariant
+        catColor.copy(alpha = bgAlpha)
     }
     val textColor = if (isSelected) {
         MaterialTheme.colorScheme.onPrimary
     } else {
-        MaterialTheme.colorScheme.onSurface
+        catColor
     }
 
     Surface(

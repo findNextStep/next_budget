@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +46,7 @@ import ai.findnextstep.budget.data.JsonTransactionRepository
 import ai.findnextstep.budget.logic.model.Category
 import ai.findnextstep.budget.logic.model.Transaction
 import ai.findnextstep.budget.logic.service.CategoryPredictor
+import ai.findnextstep.budget.ui.theme.CategoryColorMap
 import ai.findnextstep.budget.ui.theme.ExpenseRed
 
 /**
@@ -547,15 +549,18 @@ private fun ExpandedPanel(
             ) {
                 quickCategories.forEach { cat ->
                     val isSel = cat == selectedCategory
+                    val baseColor = CategoryColorMap[cat.key] ?: ExpenseRed
+                    // 悬浮面板始终为暗色底，前景提亮以保证可读性
+                    val fgColor = lerp(baseColor, Color.White, 0.30f)
                     Surface(
                         modifier = Modifier.clickable { onCategorySelected(cat) },
                         shape = RoundedCornerShape(6.dp),
-                        color = if (isSel) ExpenseRed else Color.White.copy(alpha = 0.15f)
+                        color = if (isSel) baseColor else fgColor.copy(alpha = 0.22f)
                     ) {
                         Text(
                             cat.displayName,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            color = if (isSel) Color.White else Color.White.copy(alpha = 0.8f),
+                            color = if (isSel) Color.White else fgColor,
                             fontSize = 12.sp
                         )
                     }

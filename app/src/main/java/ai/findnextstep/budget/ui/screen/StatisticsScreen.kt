@@ -1,8 +1,10 @@
 package ai.findnextstep.budget.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -17,6 +19,8 @@ import ai.findnextstep.budget.logic.model.DaySummary
 import ai.findnextstep.budget.logic.model.Period
 import ai.findnextstep.budget.ui.component.PeriodSelector
 import ai.findnextstep.budget.ui.theme.ExpenseRed
+import ai.findnextstep.budget.ui.theme.categoryBackgroundAlpha
+import ai.findnextstep.budget.ui.theme.categoryForeground
 import ai.findnextstep.budget.ui.theme.IncomeGreen
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
@@ -171,7 +175,16 @@ private fun CategorySummaryRow(cat: CategorySummary, maxExpense: Double) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(cat.category.displayName, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val catColor = categoryForeground(cat.category.key, MaterialTheme.colorScheme.primary)
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(catColor, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(cat.category.displayName, fontWeight = FontWeight.Medium)
+                }
                 Row {
                     if (cat.incomeAmount > 0) {
                         Text(
@@ -229,14 +242,17 @@ private fun DaySummaryRow(day: DaySummary, period: Period) {
             if (day.categorySummaries.isNotEmpty()) {
                 Row(modifier = Modifier.weight(0.4f)) {
                     day.categorySummaries.take(3).forEach { cat ->
+                        val catColor = categoryForeground(cat.category.key, MaterialTheme.colorScheme.primary)
+                        val bgAlpha = categoryBackgroundAlpha()
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = catColor.copy(alpha = bgAlpha),
                             modifier = Modifier.padding(end = 4.dp)
                         ) {
                             Text(
                                 cat.category.displayName,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                color = catColor,
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
