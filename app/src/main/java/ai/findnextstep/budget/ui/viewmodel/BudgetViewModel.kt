@@ -1,6 +1,7 @@
 package ai.findnextstep.budget.ui.viewmodel
 
 import android.app.Application
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -85,6 +86,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         val themeStr = prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
         val themeMode = try { ThemeMode.valueOf(themeStr) } catch (_: Exception) { ThemeMode.SYSTEM }
         val floatingEnabled = FloatingExpenseService.isEnabled(getApplication())
+        if (floatingEnabled) {
+            getApplication<Application>().startForegroundService(
+                Intent(getApplication(), FloatingExpenseService::class.java)
+            )
+        }
 
         _uiState.update {
             it.copy(
