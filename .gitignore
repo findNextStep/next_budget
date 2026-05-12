@@ -1,4 +1,5 @@
 *.iml
+.deepseek
 .gradle
 .gradle-home
 .android
