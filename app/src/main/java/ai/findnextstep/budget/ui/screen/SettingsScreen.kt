@@ -190,6 +190,25 @@ fun SettingsScreen(
                 )
             }
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("隐藏提示文本", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "关闭「点击记账 · 长按关闭」提示",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Switch(
+                    checked = uiState.hideHint,
+                    onCheckedChange = { viewModel.setHideHint(it) }
+                )
+            }
+
             HorizontalDivider()
 
             // ── CSV 操作 ──

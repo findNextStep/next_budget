@@ -83,6 +83,9 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         const val PREF_FLOATING_ENABLED = "floating_window_enabled"
         const val PREF_FLOATING_X = "floating_bubble_x"
         const val PREF_FLOATING_Y = "floating_bubble_y"
+        const val PREF_HIDE_HINT = "floating_hide_hint"
+
+        val hideHintState = mutableStateOf(false)
 
         fun isEnabled(context: Context): Boolean {
             return context.getSharedPreferences("budget_prefs", 0)
@@ -119,6 +122,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         val prefs = getSharedPreferences("budget_prefs", 0)
         bubbleX = prefs.getInt(PREF_FLOATING_X, 0)
         bubbleY = prefs.getInt(PREF_FLOATING_Y, 300)
+        hideHintState.value = prefs.getBoolean(PREF_HIDE_HINT, false)
 
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
     }
@@ -395,10 +399,10 @@ private fun CollapsedBubble(
                 if (showClose) onClose() else onTap()
             },
             shape = CircleShape,
-            containerColor = ExpenseRed,
+            containerColor = ExpenseRed.copy(alpha = 0.75f),
             contentColor = Color.White,
             modifier = Modifier
-                .size(56.dp)
+                .size(44.dp)
                 .shadow(8.dp, CircleShape),
             elevation = FloatingActionButtonDefaults.elevation(6.dp)
         ) {
@@ -416,9 +420,10 @@ private fun CollapsedBubble(
     }
 
     // 底部提示
+    if (!FloatingExpenseService.hideHintState.value) {
     Box(
         modifier = Modifier
-            .padding(top = 60.dp)
+            .padding(top = 48.dp)
             .background(
                 Color.Black.copy(alpha = 0.6f),
                 RoundedCornerShape(4.dp)
@@ -430,6 +435,7 @@ private fun CollapsedBubble(
             color = Color.White,
             fontSize = 10.sp
         )
+    }
     }
 }
 

@@ -31,6 +31,7 @@ data class BudgetUiState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val currentScreen: Screen = Screen.MAIN,
     val floatingWindowEnabled: Boolean = false,
+    val hideHint: Boolean = false,
     val showFloatingInput: Boolean = false,
     val floatingAmount: String = "",
     val floatingCategory: Category? = null,
@@ -86,6 +87,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         val themeStr = prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
         val themeMode = try { ThemeMode.valueOf(themeStr) } catch (_: Exception) { ThemeMode.SYSTEM }
         val floatingEnabled = FloatingExpenseService.isEnabled(getApplication())
+        val hideHint = prefs.getBoolean(FloatingExpenseService.PREF_HIDE_HINT, false)
         if (floatingEnabled) {
             getApplication<Application>().startForegroundService(
                 Intent(getApplication(), FloatingExpenseService::class.java)
@@ -99,7 +101,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 useDailyMode = useDaily,
                 todayDailySalary = salaryService.getTodayDailySalary(),
                 themeMode = themeMode,
-                floatingWindowEnabled = floatingEnabled
+                floatingWindowEnabled = floatingEnabled,
+                hideHint = hideHint
             )
         }
 
@@ -180,6 +183,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun setThemeMode(mode: ThemeMode) {
         prefs.edit().putString("theme_mode", mode.name).apply()
         _uiState.update { it.copy(themeMode = mode) }
+    }
+
+    /** 设置是否隐藏提示文本 */
+    fun setHideHint(hide: Boolean) {
+        prefs.edit().putBoolean(FloatingExpenseService.PREF_HIDE_HINT, hide).apply()
+        FloatingExpenseService.hideHintState.value = hide
+        _uiState.update { it.copy(hideHint = hide) }
     }
 
     /** 切换悬浮窗开关 */
