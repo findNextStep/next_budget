@@ -70,10 +70,12 @@ fun MainScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── 日薪信息 ──
-            if (uiState.todayDailySalary > 0) {
+            // ── 整体总结余 ──
+            val totalIncome = uiState.transactions.filter { it.amount > 0 }.sumOf { it.amount }
+            val totalExpense = uiState.transactions.filter { it.amount < 0 }.sumOf { -it.amount }
+            if (totalIncome > 0 || totalExpense > 0) {
                 item {
-                    DailySalaryCard(uiState.todayDailySalary)
+                    TotalBalanceCard(totalIncome, totalExpense)
                 }
             }
 
@@ -173,27 +175,30 @@ fun MainScreen(
 }
 
 @Composable
-private fun DailySalaryCard(dailySalary: Double) {
+private fun TotalBalanceCard(totalIncome: Double, totalExpense: Double) {
+    val netAmount = totalIncome - totalExpense
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text("今日日薪", style = MaterialTheme.typography.labelMedium)
-                Text(
-                    "¥ ${"%.2f".format(dailySalary)}",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            Text(
+                "总结余",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "¥ ${"%.2f".format(netAmount)}",
+                color = if (netAmount >= 0) IncomeGreen else ExpenseRed,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineSmall
+            )
         }
     }
 }

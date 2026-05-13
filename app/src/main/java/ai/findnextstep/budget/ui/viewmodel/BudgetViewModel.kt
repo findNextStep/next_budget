@@ -2,6 +2,7 @@ package ai.findnextstep.budget.ui.viewmodel
 
 import android.app.Application
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -71,7 +72,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     // ── 持久化键 ──
     private val prefs = application.getSharedPreferences("budget_prefs", 0)
 
+    // 监听悬浮窗开关的 SharedPreferences 变化（外部关闭时联动 UI）
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == FloatingExpenseService.PREF_FLOATING_ENABLED) {
+            _uiState.update {
+                it.copy(floatingWindowEnabled = prefs.getBoolean(key, false))
+            }
+        }
+    }
+
     init {
+        prefs.registerOnSharedPreferenceChangeListener(prefsListener)
         // 加载数据
         val dataPath = application.filesDir.resolve("transactions.json").absolutePath
         repository.load(dataPath)
@@ -287,5 +298,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         val today = LocalDate.now()
         val stats = statisticsService.getStatistics(today, _uiState.value.currentPeriod)
         _uiState.update { it.copy(periodStatistics = stats) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
     }
 }

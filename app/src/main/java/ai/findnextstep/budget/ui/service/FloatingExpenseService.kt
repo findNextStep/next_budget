@@ -131,6 +131,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            setEnabled(this, false)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -271,7 +272,10 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
                             } catch (_: Exception) {}
                         }
                     },
-                    onClose = { stopSelf() },
+                    onClose = {
+                        setEnabled(this@FloatingExpenseService, false)
+                        stopSelf()
+                    },
                     onAddTransaction = { category, amount ->
                         val txn = Transaction.create(
                             category = category,

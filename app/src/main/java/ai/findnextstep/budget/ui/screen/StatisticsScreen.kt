@@ -24,6 +24,11 @@ import ai.findnextstep.budget.ui.theme.categoryForeground
 import ai.findnextstep.budget.ui.theme.IncomeGreen
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,11 +86,8 @@ fun StatisticsScreen(
                     )
                 }
 
-                // 找出最大支出用于比例条
-                val maxExpense = stats.categorySummaries.maxOfOrNull { it.expenseAmount } ?: 1.0
-
-                items(stats.categorySummaries) { cat ->
-                    CategorySummaryRow(cat, maxExpense)
+                item {
+                    CategoryPieChart(stats.categorySummaries)
                 }
             }
 
@@ -160,56 +162,129 @@ private fun SummaryHeader(stats: ai.findnextstep.budget.logic.model.PeriodStatis
 }
 
 @Composable
-private fun CategorySummaryRow(cat: CategorySummary, maxExpense: Double) {
-    val fraction = if (maxExpense > 0) (cat.expenseAmount / maxExpense).toFloat() else 0f
+private fun CategoryPieChart(
+    categorySummaries: List<CategorySummary>,
+    modifier: Modifier = Modifier
+) {
+    val totalExpense = categorySummaries.sumOf { it.expenseAmount }
+    if (totalExpense <= 0) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("暂无支出数据", style = MaterialTheme.typography.bodyMedium)
+        }
+        return
+    }
+
+    val sorted = categorySummaries
+        .filter { it.expenseAmount > 0 }
+        .sortedByDescending { it.expenseAmount }
+
+    // categoryForeground 是 @Composable，提前计算颜色
+    val categoryColors = sorted.map { cat ->
+        categoryForeground(cat.category.key, MaterialTheme.colorScheme.primary)
+    }
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 3.dp),
-        shape = RoundedCornerShape(8.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Column(modifier = Modifier.padding(16.dp)) {
+            // ── 环形饼图 ──
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val catColor = categoryForeground(cat.category.key, MaterialTheme.colorScheme.primary)
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .background(catColor, CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(cat.category.displayName, fontWeight = FontWeight.Medium)
+                var startAngle = -90f
+                Canvas(modifier = Modifier.size(180.dp)) {
+                    val strokeWidth = 36.dp.toPx()
+                    val halfStroke = strokeWidth / 2
+                    val diameter = size.minDimension
+                    val arcTopLeft = Offset(halfStroke, halfStroke)
+                    val arcSize = Size(diameter - strokeWidth, diameter - strokeWidth)
+
+                    sorted.forEachIndexed { index, cat ->
+                        val sweepAngle = (cat.expenseAmount / totalExpense * 360).toFloat()
+                        drawArc(
+                            color = categoryColors[index],
+                            startAngle = startAngle,
+                            sweepAngle = sweepAngle,
+                            useCenter = false,
+                            topLeft = arcTopLeft,
+                            size = arcSize,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                        )
+                        startAngle += sweepAngle
+                    }
                 }
-                Row {
-                    if (cat.incomeAmount > 0) {
-                        Text(
-                            "+${"%.2f".format(cat.incomeAmount)} ",
-                            color = IncomeGreen,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                    if (cat.expenseAmount > 0) {
-                        Text(
-                            "-${"%.2f".format(cat.expenseAmount)}",
-                            color = ExpenseRed,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+
+                // 环形中心文字
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "总支出",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        "¥${"%.2f".format(totalExpense)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = ExpenseRed
+                    )
                 }
             }
-            if (cat.expenseAmount > 0) {
-                Spacer(modifier = Modifier.height(4.dp))
-                LinearProgressIndicator(
-                    progress = { fraction.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = ExpenseRed,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── 图例 ──
+            sorted.forEach { cat ->
+                val percentage = (cat.expenseAmount / totalExpense * 100)
+                val color = categoryForeground(cat.category.key, MaterialTheme.colorScheme.primary)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(color, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            cat.category.displayName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "¥${"%.2f".format(cat.expenseAmount)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ExpenseRed,
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                        Text(
+                            "${"%.1f".format(percentage)}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.width(40.dp)
+                        )
+                    }
+                }
             }
         }
     }
