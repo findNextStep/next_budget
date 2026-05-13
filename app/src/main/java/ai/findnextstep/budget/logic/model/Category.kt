@@ -19,15 +19,14 @@ data class Category(
 
         // ── 支出类 ──
         val FOOD = Category("FOOD", "主食", isIncome = false)
-        val DRINK = Category("DRINK", "饮料", isIncome = false)
         val SNACK = Category("SNACK", "零食", isIncome = false)
         val RENT = Category("RENT", "房租", isIncome = false)
         val TRAFFIC = Category("TRAFFIC", "交通", isIncome = false)
         val SHOPPING = Category("SHOPPING", "购物", isIncome = false)
         val RESTAURANT = Category("RESTAURANT", "餐饮", isIncome = false)
-        val PARTY = Category("PARTY", "聚会", isIncome = false)
+        val PARTY = Category("PARTY", "饮料", isIncome = false)
         val GIFT = Category("GIFT", "礼品", isIncome = false)
-        val DONATION = Category("DONATION", "捐赠", isIncome = false)
+        val DONATION = Category("DONATION", "游戏", isIncome = false)
         val ENTERTAINMENT = Category("ENTERTAINMENT", "娱乐", isIncome = false)
         val MEDICAL = Category("MEDICAL", "医疗", isIncome = false)
         val EDUCATION = Category("EDUCATION", "教育", isIncome = false)
@@ -37,7 +36,7 @@ data class Category(
         /** 所有预定义类型 */
         val predefined: List<Category> = listOf(
             SALARY, AUTOMATIC, BONUS, INVESTMENT, REFUND,
-            FOOD, DRINK, SNACK, RENT, TRAFFIC, SHOPPING,
+            FOOD, SNACK, RENT, TRAFFIC, SHOPPING,
             RESTAURANT, PARTY, GIFT, DONATION, ENTERTAINMENT,
             MEDICAL, EDUCATION, UTILITIES, OTHER
         )

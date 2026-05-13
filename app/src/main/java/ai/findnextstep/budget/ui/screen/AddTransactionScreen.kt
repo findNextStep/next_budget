@@ -1,5 +1,6 @@
 package ai.findnextstep.budget.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +27,8 @@ fun AddTransactionScreen(
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
     var note by remember { mutableStateOf("") }
     val categories = if (isIncome) Category.incomeCategories else Category.expenseCategories
+
+    BackHandler(onBack = { viewModel.goBack() })
 
     Scaffold(
         topBar = {

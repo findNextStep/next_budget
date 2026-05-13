@@ -1,5 +1,6 @@
 package ai.findnextstep.budget.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +38,8 @@ fun StatisticsScreen(
     uiState: BudgetUiState
 ) {
     val stats = uiState.periodStatistics
+
+    BackHandler(onBack = { viewModel.goBack() })
 
     Scaffold(
         topBar = {
