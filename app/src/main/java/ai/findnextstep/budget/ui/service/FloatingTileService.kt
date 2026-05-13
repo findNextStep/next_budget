@@ -42,8 +42,8 @@ class FloatingTileService : TileService() {
                 }
                 startActivityAndCollapse(intent)
             } else {
-                // 有权限，开启悬浮窗
-                FloatingExpenseService.start(this)
+                // 有权限，开启悬浮窗，直接展开记账面板
+                FloatingExpenseService.start(this, startExpanded = true)
                 updateTile()
             }
         }

@@ -82,6 +82,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         private const val NOTIFICATION_ID = 1001
 
         const val ACTION_STOP = "ai.findnextstep.budget.STOP_FLOATING"
+        const val EXTRA_START_EXPANDED = "start_expanded"
         const val PREF_FLOATING_ENABLED = "floating_window_enabled"
         const val PREF_FLOATING_X = "floating_bubble_x"
         const val PREF_FLOATING_Y = "floating_bubble_y"
@@ -99,9 +100,12 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
                 .edit().putBoolean(PREF_FLOATING_ENABLED, enabled).apply()
         }
 
-        fun start(context: Context) {
+        fun start(context: Context, startExpanded: Boolean = false) {
             setEnabled(context, true)
-            context.startForegroundService(Intent(context, FloatingExpenseService::class.java))
+            val intent = Intent(context, FloatingExpenseService::class.java).apply {
+                putExtra(EXTRA_START_EXPANDED, startExpanded)
+            }
+            context.startForegroundService(intent)
         }
 
         fun stop(context: Context) {
@@ -145,7 +149,8 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         } else {
             startForeground(NOTIFICATION_ID, buildNotification())
         }
-        showOverlay()
+        val startExpanded = intent?.getBooleanExtra(EXTRA_START_EXPANDED, false) ?: false
+        showOverlay(startExpanded)
         return START_STICKY
     }
 
@@ -213,7 +218,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
 
     // ────────────────────── 悬浮窗 ──────────────────────
 
-    private fun showOverlay() {
+    private fun showOverlay(startExpanded: Boolean = false) {
         if (overlayView != null) return
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -240,6 +245,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         val composeView = ComposeView(this).apply {
             setContent {
                 FloatingWindowContent(
+                    startExpanded = startExpanded,
                     onUpdatePosition = { dx, dy ->
                         val lp = overlayParams
                         if (lp != null) {
@@ -330,15 +336,22 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
 
 @Composable
 private fun FloatingWindowContent(
+    startExpanded: Boolean = false,
     onUpdatePosition: (Float, Float) -> Unit,
     onRequestFocus: (Boolean) -> Unit,
     onClose: () -> Unit,
     onAddTransaction: (Category, Double) -> Unit,
     categoryPredictor: CategoryPredictor
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(startExpanded) }
     var amount by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
+
+    LaunchedEffect(Unit) {
+        if (startExpanded) {
+            onRequestFocus(true)
+        }
+    }
 
     if (expanded) {
         ExpandedPanel(
