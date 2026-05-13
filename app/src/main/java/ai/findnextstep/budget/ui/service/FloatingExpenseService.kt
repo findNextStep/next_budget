@@ -24,6 +24,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -263,13 +264,21 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
                                 .apply()
                         }
                     },
-                    onRequestFocus = { focused ->
+                    onExpandChanged = { expanded ->
                         val lp = overlayParams
                         if (lp != null) {
-                            if (focused) {
+                            if (expanded) {
+                                lp.width = WindowManager.LayoutParams.MATCH_PARENT
+                                lp.height = WindowManager.LayoutParams.MATCH_PARENT
+                                lp.x = 0
+                                lp.y = 0
                                 lp.flags = lp.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
                                 lp.flags = lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
                             } else {
+                                lp.width = WindowManager.LayoutParams.WRAP_CONTENT
+                                lp.height = WindowManager.LayoutParams.WRAP_CONTENT
+                                lp.x = bubbleX
+                                lp.y = bubbleY
                                 lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                                 lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                             }
@@ -338,7 +347,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
 private fun FloatingWindowContent(
     startExpanded: Boolean = false,
     onUpdatePosition: (Float, Float) -> Unit,
-    onRequestFocus: (Boolean) -> Unit,
+    onExpandChanged: (Boolean) -> Unit,
     onClose: () -> Unit,
     onAddTransaction: (Category, Double) -> Unit,
     categoryPredictor: CategoryPredictor
@@ -349,43 +358,68 @@ private fun FloatingWindowContent(
 
     LaunchedEffect(Unit) {
         if (startExpanded) {
-            onRequestFocus(true)
+            onExpandChanged(true)
         }
     }
 
     if (expanded) {
-        ExpandedPanel(
-            amount = amount,
-            onAmountChange = { newVal ->
-                amount = newVal
-                val amt = newVal.toDoubleOrNull()
-                if (amt != null && amt > 0) {
-                    selectedCategory = categoryPredictor.predictOrDefault(-amt)
-                }
-            },
-            selectedCategory = selectedCategory,
-            onCategorySelected = { selectedCategory = it },
-            onConfirm = {
-                val amt = amount.toDoubleOrNull()
-                if (amt != null && amt > 0) {
-                    val cat = selectedCategory ?: Category.OTHER
-                    onAddTransaction(cat, amt)
-                }
-                amount = ""
-                selectedCategory = null
-                expanded = false
-                onRequestFocus(false)
-            },
-            onCollapse = {
-                expanded = false
-                onRequestFocus(false)
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 半透明蒙层：点击外部区域收起面板（保留已输入内容）
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) {
+                        expanded = false
+                        onExpandChanged(false)
+                    }
+            )
+            // 记账面板居中，阻止点击穿透到蒙层
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { /* 消费点击，防止穿透 */ }
+            ) {
+                ExpandedPanel(
+                    amount = amount,
+                    onAmountChange = { newVal ->
+                        amount = newVal
+                        val amt = newVal.toDoubleOrNull()
+                        if (amt != null && amt > 0) {
+                            selectedCategory = categoryPredictor.predictOrDefault(-amt)
+                        }
+                    },
+                    selectedCategory = selectedCategory,
+                    onCategorySelected = { selectedCategory = it },
+                    onConfirm = {
+                        val amt = amount.toDoubleOrNull()
+                        if (amt != null && amt > 0) {
+                            val cat = selectedCategory ?: Category.OTHER
+                            onAddTransaction(cat, amt)
+                        }
+                        amount = ""
+                        selectedCategory = null
+                        expanded = false
+                        onExpandChanged(false)
+                    },
+                    onCollapse = {
+                        expanded = false
+                        onExpandChanged(false)
+                    }
+                )
             }
-        )
+        }
     } else {
         CollapsedBubble(
             onTap = {
                 expanded = true
-                onRequestFocus(true)
+                onExpandChanged(true)
             },
             onDrag = { dx, dy -> onUpdatePosition(dx, dy) },
             onClose = onClose
