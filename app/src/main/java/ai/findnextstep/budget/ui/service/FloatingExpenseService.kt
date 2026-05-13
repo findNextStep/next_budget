@@ -24,6 +24,8 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -374,6 +376,7 @@ private fun FloatingWindowContent(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CollapsedBubble(
     onTap: () -> Unit,
@@ -384,6 +387,17 @@ private fun CollapsedBubble(
 
     Box(
         modifier = Modifier
+            .combinedClickable(
+                onClick = {
+                    if (showClose) {
+                        onClose()
+                        showClose = false
+                    } else {
+                        onTap()
+                    }
+                },
+                onLongClick = { showClose = true }
+            )
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragEnd = { showClose = false },
@@ -394,28 +408,20 @@ private fun CollapsedBubble(
                 }
             }
     ) {
-        FloatingActionButton(
-            onClick = {
-                if (showClose) onClose() else onTap()
-            },
+        Surface(
             shape = CircleShape,
-            containerColor = ExpenseRed.copy(alpha = 0.75f),
-            contentColor = Color.White,
+            color = ExpenseRed.copy(alpha = 0.75f),
             modifier = Modifier
                 .size(44.dp)
-                .shadow(8.dp, CircleShape),
-            elevation = FloatingActionButtonDefaults.elevation(6.dp)
+                .shadow(8.dp, CircleShape)
         ) {
-            if (showClose) {
-                Text("✕", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            } else {
-                Text("¥", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Box(contentAlignment = Alignment.Center) {
+                if (showClose) {
+                    Text("✕", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                } else {
+                    Text("¥", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
-        }
-
-        // 长按显示关闭
-        LaunchedEffect(Unit) {
-            // 使用简单的长按检测：点击后如果再次点击间隔很短
         }
     }
 
