@@ -8,7 +8,9 @@
 - **日薪自动入账**：设置月收入后自动折算为日薪，每日 12:00 自动录入（支持后台触发）
 - **智能分类推测**：根据历史交易中同数额的记录自动推断分类
 - **多维度统计**：支持日 / 周 / 月 / 年维度，按分类查看每日开销分布
-- **浮动窗口快速记账**：通过悬浮窗在其他应用之上快速记录支出
+- **浮动窗口快速记账**：通过悬浮窗在其他应用之上快速记录支出，支持拖拽移动、长按关闭
+- **悬浮球个性化**：可调节气泡大小（44dp）、半透明背景，支持隐藏提示文本
+- **快捷开关磁贴**：通知栏快捷设置面板一键开关悬浮记账（需手动拖入磁贴）
 - **CSV 导入导出**：支持从 CSV 文件批量导入历史账目，导出当前全部记录
 - **主题切换**：白色 / 黑色 / 纯黑（OLED 友好）三套主题
 
@@ -55,7 +57,8 @@ app/src/main/java/ai/findnextstep/budget/
     │   ├── CategorySelector.kt       # 分类选择器
     │   └── PeriodSelector.kt         # 时间周期选择器
     ├── service/
-    │   └── FloatingExpenseService.kt # 悬浮窗快速记账 Service
+    │   ├── FloatingExpenseService.kt # 悬浮窗快速记账 Service
+    │   └── FloatingTileService.kt   # 快捷开关磁贴 Service
     ├── viewmodel/
     │   └── BudgetViewModel.kt        # 全局 ViewModel
     └── theme/
@@ -98,6 +101,7 @@ gradlew.bat assembleDebug
 | `FOREGROUND_SERVICE` | 前台服务保活（日薪自动入账） |
 | `FOREGROUND_SERVICE_SPECIAL_USE` | Android 14+ 前台服务类型声明 |
 | `POST_NOTIFICATIONS` | Android 13+ 通知权限 |
+| `BIND_QUICK_SETTINGS_TILE` | 快捷开关磁贴 |
 
 ## License
 

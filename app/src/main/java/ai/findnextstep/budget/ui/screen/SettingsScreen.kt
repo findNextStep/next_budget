@@ -209,6 +209,21 @@ fun SettingsScreen(
                 )
             }
 
+            // 快捷开关提示
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("快捷开关", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "下拉通知栏 → 编辑 → 拖入「悬浮记账」磁贴即可快速开关",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
             HorizontalDivider()
 
             // ── CSV 操作 ──
