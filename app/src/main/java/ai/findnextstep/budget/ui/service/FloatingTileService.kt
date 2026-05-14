@@ -40,7 +40,7 @@ class FloatingTileService : TileService() {
                 ).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                startActivityAndCollapse(intent)
+                startActivity(intent)
             } else {
                 // 有权限，开启悬浮窗，直接展开记账面板
                 FloatingExpenseService.start(this, startExpanded = true)
