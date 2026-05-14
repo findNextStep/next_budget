@@ -21,12 +21,20 @@ import ai.findnextstep.budget.ui.viewmodel.Screen
 @Composable
 fun AddTransactionScreen(
     viewModel: BudgetViewModel,
-    isIncome: Boolean
+    isIncome: Boolean,
+    initialAmount: String = ""
 ) {
-    var amount by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf(initialAmount) }
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
     var note by remember { mutableStateOf("") }
     val categories = if (isIncome) Category.incomeCategories else Category.expenseCategories
+
+    // 消费掉预填金额后清除 ViewModel 中的暂存，避免下次正常打开时误带
+    LaunchedEffect(Unit) {
+        if (initialAmount.isNotEmpty()) {
+            viewModel.updateFloatingAmount("")
+        }
+    }
 
     BackHandler(onBack = { viewModel.goBack() })
 

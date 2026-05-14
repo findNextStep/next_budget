@@ -1,5 +1,6 @@
 package ai.findnextstep.budget
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,8 +26,19 @@ class MainActivity : ComponentActivity() {
         viewModel.processPendingDeposits()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleDeepLink(intent)
+    }
+
+    private fun handleDeepLink(intent: Intent?) {
+        val amount = intent?.getStringExtra("initial_amount") ?: return
+        viewModel.openAddExpenseWithAmount(amount)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleDeepLink(intent)
         setContent {
             val uiState by viewModel.uiState.collectAsState()
 
@@ -37,7 +49,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     when (uiState.currentScreen) {
                         Screen.MAIN -> MainScreen(viewModel = viewModel, uiState = uiState)
-                        Screen.ADD_EXPENSE -> AddTransactionScreen(viewModel = viewModel, isIncome = false)
+                        Screen.ADD_EXPENSE -> AddTransactionScreen(viewModel = viewModel, isIncome = false, initialAmount = uiState.floatingAmount)
                         Screen.ADD_INCOME -> AddTransactionScreen(viewModel = viewModel, isIncome = true)
                         Screen.STATISTICS -> StatisticsScreen(viewModel = viewModel, uiState = uiState)
                         Screen.SETTINGS -> SettingsScreen(viewModel = viewModel, uiState = uiState)

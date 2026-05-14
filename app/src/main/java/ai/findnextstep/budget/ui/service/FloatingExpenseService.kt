@@ -291,6 +291,16 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
                         setEnabled(this@FloatingExpenseService, false)
                         stopSelf()
                     },
+                    onOpenInMainApp = { amount ->
+                        val intent = Intent(this@FloatingExpenseService, MainActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            putExtra("open_screen", "add_expense")
+                            putExtra("initial_amount", amount)
+                        }
+                        startActivity(intent)
+                        setEnabled(this@FloatingExpenseService, false)
+                        stopSelf()
+                    },
                     onAddTransaction = { category, amount ->
                         val txn = Transaction.create(
                             category = category,
@@ -349,6 +359,7 @@ private fun FloatingWindowContent(
     onUpdatePosition: (Float, Float) -> Unit,
     onExpandChanged: (Boolean) -> Unit,
     onClose: () -> Unit,
+    onOpenInMainApp: (String) -> Unit,
     onAddTransaction: (Category, Double) -> Unit,
     categoryPredictor: CategoryPredictor
 ) {
@@ -387,6 +398,7 @@ private fun FloatingWindowContent(
                     ) { /* 消费点击，防止穿透 */ }
             ) {
                 ExpandedPanel(
+                    onOpenInMainApp = onOpenInMainApp,
                     amount = amount,
                     onAmountChange = { newVal ->
                         amount = newVal
@@ -498,6 +510,7 @@ private fun CollapsedBubble(
 
 @Composable
 private fun ExpandedPanel(
+    onOpenInMainApp: (String) -> Unit,
     amount: String,
     onAmountChange: (String) -> Unit,
     selectedCategory: Category?,
@@ -616,7 +629,13 @@ private fun ExpandedPanel(
                     // 悬浮面板始终为暗色底，前景提亮以保证可读性
                     val fgColor = lerp(baseColor, Color.White, 0.30f)
                     Surface(
-                        modifier = Modifier.clickable { onCategorySelected(cat) },
+                        modifier = Modifier.clickable {
+                            if (cat == Category.OTHER && amount.isNotEmpty()) {
+                                onOpenInMainApp(amount)
+                            } else {
+                                onCategorySelected(cat)
+                            }
+                        },
                         shape = RoundedCornerShape(6.dp),
                         color = if (isSel) baseColor else fgColor.copy(alpha = 0.22f)
                     ) {

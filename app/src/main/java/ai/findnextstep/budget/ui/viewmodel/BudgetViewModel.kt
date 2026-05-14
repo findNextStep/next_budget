@@ -148,7 +148,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     /** 导航到指定界面 */
     fun navigateTo(screen: Screen) {
-        _uiState.update { it.copy(currentScreen = screen) }
+        _uiState.update { it.copy(currentScreen = screen, floatingAmount = "") }
+    }
+
+    /** 从悬浮窗「其他」跳转打开记支出页面，预填金额 */
+    fun openAddExpenseWithAmount(amount: String) {
+        _uiState.update {
+            it.copy(
+                currentScreen = Screen.ADD_EXPENSE,
+                floatingAmount = amount
+            )
+        }
     }
 
     /** 返回主界面 */
