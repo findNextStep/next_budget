@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import ai.findnextstep.budget.logic.model.CategorySummary
 import ai.findnextstep.budget.logic.model.DaySummary
 import ai.findnextstep.budget.logic.model.Period
+import ai.findnextstep.budget.ui.component.ExpenseHeatmap
 import ai.findnextstep.budget.ui.component.PeriodSelector
 import ai.findnextstep.budget.ui.theme.ExpenseRed
 import ai.findnextstep.budget.ui.theme.categoryBackgroundAlpha
@@ -75,6 +76,17 @@ fun StatisticsScreen(
                     Box(modifier = Modifier.padding(32.dp), contentAlignment = Alignment.Center) {
                         Text("暂无数据", style = MaterialTheme.typography.bodyLarge)
                     }
+                }
+            }
+
+            // 支出热力图（仅月/年视图）
+            if (stats != null && stats.daySummaries.isNotEmpty() &&
+                (uiState.currentPeriod == Period.MONTH || uiState.currentPeriod == Period.YEAR)) {
+                item {
+                    ExpenseHeatmap(
+                        daySummaries = stats.daySummaries,
+                        period = uiState.currentPeriod
+                    )
                 }
             }
 
