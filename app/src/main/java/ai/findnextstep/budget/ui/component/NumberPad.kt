@@ -6,6 +6,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -83,6 +85,7 @@ private fun NumberPadButton(
     label: String,
     onClick: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
     val isAction = label in listOf("⌫", "C", "OK")
     val containerColor = when (label) {
         "OK" -> MaterialTheme.colorScheme.primary
@@ -96,7 +99,12 @@ private fun NumberPadButton(
     }
 
     Button(
-        onClick = onClick,
+        onClick = {
+            haptic.performHapticFeedback(
+                if (isAction) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove
+            )
+            onClick()
+        },
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,

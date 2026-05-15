@@ -39,7 +39,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -658,6 +660,7 @@ private fun MiniKey(
     onClick: () -> Unit,
     highlight: Boolean = false
 ) {
+    val haptic = LocalHapticFeedback.current
     val bg = when {
         highlight -> ExpenseRed
         label in listOf("⌫", "C") -> Color.White.copy(alpha = 0.10f)
@@ -669,10 +672,17 @@ private fun MiniKey(
         else -> Color.White
     }
 
+    val isAction = label in listOf("⌫", "C", "✓")
+
     Surface(
         modifier = Modifier
             .size(56.dp)
-            .clickable(onClick = onClick),
+            .clickable {
+                haptic.performHapticFeedback(
+                    if (isAction) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove
+                )
+                onClick()
+            },
         shape = CircleShape,
         color = bg
     ) {
