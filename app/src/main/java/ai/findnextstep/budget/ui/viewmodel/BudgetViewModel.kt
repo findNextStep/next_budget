@@ -24,7 +24,9 @@ data class BudgetUiState(
     val transactions: List<Transaction> = emptyList(),
     val recentTransactions: List<Transaction> = emptyList(),
     val currentPeriod: Period = Period.MONTH,
+    val referenceDate: LocalDate = LocalDate.now(),
     val periodStatistics: PeriodStatistics? = null,
+    val slideDirection: Int = 0,
     val monthlyIncome: Double = 0.0,
     val dailyIncome: Double = 0.0,
     val useDailyMode: Boolean = false,
@@ -168,8 +170,41 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     /** 设置统计周期 */
     fun setPeriod(period: Period) {
-        _uiState.update { it.copy(currentPeriod = period) }
+        _uiState.update { it.copy(currentPeriod = period, referenceDate = LocalDate.now(), slideDirection = 0) }
         refreshStatistics()
+    }
+
+    /** 翻到上一个周期 */
+    fun goToPreviousPeriod() {
+        val state = _uiState.value
+        val prevDate = when (state.currentPeriod) {
+            Period.DAY -> state.referenceDate.minusDays(1)
+            Period.WEEK -> state.referenceDate.minusWeeks(1)
+            Period.MONTH -> state.referenceDate.minusMonths(1)
+            Period.YEAR -> state.referenceDate.minusYears(1)
+        }
+        _uiState.update { it.copy(referenceDate = prevDate, slideDirection = -1) }
+        refreshStatistics()
+    }
+
+    /** 翻到下一个周期（不超过今天） */
+    fun goToNextPeriod() {
+        val state = _uiState.value
+        val today = LocalDate.now()
+        val nextDate = when (state.currentPeriod) {
+            Period.DAY -> state.referenceDate.plusDays(1)
+            Period.WEEK -> state.referenceDate.plusWeeks(1)
+            Period.MONTH -> state.referenceDate.plusMonths(1)
+            Period.YEAR -> state.referenceDate.plusYears(1)
+        }
+        if (nextDate.isAfter(today)) return
+        _uiState.update { it.copy(referenceDate = nextDate, slideDirection = 1) }
+        refreshStatistics()
+    }
+
+    /** 重置滑动方向（动画结束后调用） */
+    fun resetSlideDirection() {
+        _uiState.update { it.copy(slideDirection = 0) }
     }
 
     /** 设置月收入 */
@@ -305,8 +340,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun refreshStatistics() {
-        val today = LocalDate.now()
-        val stats = statisticsService.getStatistics(today, _uiState.value.currentPeriod)
+        val state = _uiState.value
+        val stats = statisticsService.getStatistics(state.referenceDate, state.currentPeriod)
         _uiState.update { it.copy(periodStatistics = stats) }
     }
 

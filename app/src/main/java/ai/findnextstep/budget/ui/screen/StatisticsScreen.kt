@@ -1,7 +1,12 @@
 package ai.findnextstep.budget.ui.screen
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,8 +18,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import ai.findnextstep.budget.logic.model.CategorySummary
 import ai.findnextstep.budget.logic.model.DaySummary
 import ai.findnextstep.budget.logic.model.Period
@@ -26,11 +40,10 @@ import ai.findnextstep.budget.ui.theme.categoryForeground
 import ai.findnextstep.budget.ui.theme.IncomeGreen
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAdjusters
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,70 +67,107 @@ fun StatisticsScreen(
             )
         }
     ) { paddingValues ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 16.dp)
+                .padding(paddingValues)
+                .pointerInput(uiState.currentPeriod, uiState.referenceDate) {
+                    var dragX = 0f
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (dragX > 80f) viewModel.goToPreviousPeriod()
+                            else if (dragX < -80f) viewModel.goToNextPeriod()
+                            dragX = 0f
+                        }
+                    ) { _, dragAmount ->
+                        dragX += dragAmount
+                    }
+                }
         ) {
-            // 周期选择
-            item {
+            Column(modifier = Modifier.fillMaxSize()) {
                 PeriodSelector(
                     selectedPeriod = uiState.currentPeriod,
                     onPeriodSelected = { viewModel.setPeriod(it) }
                 )
-            }
 
-            // 概要
-            item {
-                if (stats != null) {
-                    SummaryHeader(stats)
-                } else {
-                    Box(modifier = Modifier.padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text("暂无数据", style = MaterialTheme.typography.bodyLarge)
+                PeriodNavigationLabel(
+                    referenceDate = uiState.referenceDate,
+                    period = uiState.currentPeriod
+                )
+
+                Box(modifier = Modifier.weight(1f)) {
+                    val offsetX = remember { Animatable(0f) }
+                    var contentWidth by remember { mutableStateOf(0f) }
+
+                    LaunchedEffect(uiState.slideDirection) {
+                        if (uiState.slideDirection != 0 && contentWidth > 0f) {
+                            val startOffset = if (uiState.slideDirection < 0) -contentWidth else contentWidth
+                            offsetX.snapTo(startOffset)
+                            offsetX.animateTo(0f, tween(250, easing = FastOutSlowInEasing))
+                            viewModel.resetSlideDirection()
+                        }
                     }
-                }
-            }
 
-            // 支出热力图（仅月/年视图）
-            if (stats != null && stats.daySummaries.isNotEmpty() &&
-                (uiState.currentPeriod == Period.MONTH || uiState.currentPeriod == Period.YEAR)) {
-                item {
-                    ExpenseHeatmap(
-                        daySummaries = stats.daySummaries,
-                        period = uiState.currentPeriod
-                    )
-                }
-            }
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                            .onSizeChanged { contentWidth = it.width.toFloat() },
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        item {
+                            if (stats != null) {
+                                SummaryHeader(stats)
+                            } else {
+                                Box(
+                                    modifier = Modifier.padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("暂无数据", style = MaterialTheme.typography.bodyLarge)
+                                }
+                            }
+                        }
 
-            // 类型汇总
-            if (stats != null && stats.categorySummaries.isNotEmpty()) {
-                item {
-                    Text(
-                        "类型分布",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
+                        if (stats != null && stats.daySummaries.isNotEmpty() &&
+                            (uiState.currentPeriod == Period.MONTH || uiState.currentPeriod == Period.YEAR)
+                        ) {
+                            item {
+                                ExpenseHeatmap(
+                                    daySummaries = stats.daySummaries,
+                                    period = uiState.currentPeriod
+                                )
+                            }
+                        }
 
-                item {
-                    CategoryPieChart(stats.categorySummaries)
-                }
-            }
+                        if (stats != null && stats.categorySummaries.isNotEmpty()) {
+                            item {
+                                Text(
+                                    "类型分布",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
 
-            // 每日明细
-            if (stats != null && stats.daySummaries.isNotEmpty()) {
-                item {
-                    Text(
-                        "每日明细",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-                items(stats.daySummaries) { day ->
-                    DaySummaryRow(day, uiState.currentPeriod)
+                            item {
+                                CategoryPieChart(stats.categorySummaries)
+                            }
+                        }
+
+                        if (stats != null && stats.daySummaries.isNotEmpty()) {
+                            item {
+                                Text(
+                                    "每日明细",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+                            items(stats.daySummaries) { day ->
+                                DaySummaryRow(day, uiState.currentPeriod)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -298,10 +348,41 @@ private fun CategoryPieChart(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             modifier = Modifier.width(40.dp)
                         )
-                    }
                 }
             }
+            }
         }
+    }
+}
+
+@Composable
+private fun PeriodNavigationLabel(
+    referenceDate: LocalDate,
+    period: Period
+) {
+    val label = formatReferenceDate(referenceDate, period)
+    Text(
+        label,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        textAlign = TextAlign.Center,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold
+    )
+}
+
+private fun formatReferenceDate(date: LocalDate, period: Period): String {
+    val fmt = DateTimeFormatter.ofPattern("M月d日")
+    return when (period) {
+        Period.DAY -> date.format(fmt)
+        Period.WEEK -> {
+            val monday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            val sunday = date.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+            "${monday.format(fmt)} - ${sunday.format(fmt)}"
+        }
+        Period.MONTH -> "${date.year}年${date.monthValue}月"
+        Period.YEAR -> "${date.year}年"
     }
 }
 
