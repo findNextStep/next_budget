@@ -30,6 +30,8 @@ import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
 import ai.findnextstep.budget.ui.viewmodel.Screen
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,42 +65,42 @@ fun MainScreen(
             }
         }
     ) { paddingValues ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(paddingValues)
         ) {
-            // ── 整体总结余 ──
-            val totalIncome = uiState.transactions.filter { it.amount > 0 }.sumOf { it.amount }
-            val totalExpense = uiState.transactions.filter { it.amount < 0 }.sumOf { -it.amount }
-            if (totalIncome > 0 || totalExpense > 0) {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // ── 整体总结余 ──
+                val totalIncome = uiState.transactions.filter { it.amount > 0 }.sumOf { it.amount }
+                val totalExpense = uiState.transactions.filter { it.amount < 0 }.sumOf { -it.amount }
+                if (totalIncome > 0 || totalExpense > 0) {
+                    item {
+                        TotalBalanceCard(totalIncome, totalExpense)
+                    }
+                }
+
+                // ── 本日概览 ──
                 item {
-                    TotalBalanceCard(totalIncome, totalExpense)
+                    TodaySummaryCard(uiState)
                 }
             }
 
-            // ── 悬浮窗快捷开关 ──
-            item {
-                FloatingWindowToggleCard(
-                    enabled = uiState.floatingWindowEnabled,
-                    onToggle = { viewModel.toggleFloatingWindow(it) }
-                )
-            }
-
-            // ── 本月概要 ──
-            item {
-                MonthSummaryCard(uiState)
-            }
-
-            // ── +/- 按钮区 ──
-            item {
+            // ── 底部操作区 ──
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // 记支出
                     LargeActionButton(
                         label = "− 支出",
                         color = ExpenseRed,
@@ -106,7 +108,6 @@ fun MainScreen(
                         modifier = Modifier.weight(1f)
                     )
                     Spacer(modifier = Modifier.width(16.dp))
-                    // 记收入
                     LargeActionButton(
                         label = "+ 收入",
                         color = IncomeGreen,
@@ -114,10 +115,7 @@ fun MainScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
-            }
 
-            // ── 统计入口 ──
-            item {
                 OutlinedButton(
                     onClick = { viewModel.navigateTo(Screen.STATISTICS) },
                     modifier = Modifier.fillMaxWidth()
@@ -125,20 +123,6 @@ fun MainScreen(
                     Icon(Icons.Default.DateRange, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("查看统计")
-                }
-            }
-
-            // ── 最近记录 ──
-            if (uiState.recentTransactions.isNotEmpty()) {
-                item {
-                    Text(
-                        "最近记录",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                items(uiState.recentTransactions.take(10)) { txn ->
-                    TransactionItem(txn = txn, onDelete = { viewModel.deleteTransaction(txn.id) })
                 }
             }
         }
@@ -204,23 +188,30 @@ private fun TotalBalanceCard(totalIncome: Double, totalExpense: Double) {
 }
 
 @Composable
-private fun MonthSummaryCard(uiState: BudgetUiState) {
-    val stats = uiState.periodStatistics
+private fun TodaySummaryCard(uiState: BudgetUiState) {
+    val zone = ZoneId.systemDefault()
+    val todayStart = LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli()
+    val todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1
+    val todayTxns = uiState.transactions.filter { it.timestamp in todayStart..todayEnd }
+    val income = todayTxns.filter { it.amount > 0 }.sumOf { it.amount }
+    val expense = todayTxns.filter { it.amount < 0 }.sumOf { -it.amount }
+    val net = income - expense
+
     Card(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("本月概览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("本日概览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                SummaryItem("收入", stats?.totalIncome ?: 0.0, IncomeGreen)
-                SummaryItem("支出", stats?.totalExpense ?: 0.0, ExpenseRed)
-                SummaryItem("结余", stats?.netAmount ?: 0.0,
-                    if ((stats?.netAmount ?: 0.0) >= 0) IncomeGreen else ExpenseRed
+                SummaryItem("收入", income, IncomeGreen)
+                SummaryItem("支出", expense, ExpenseRed)
+                SummaryItem("结余", net,
+                    if (net >= 0) IncomeGreen else ExpenseRed
                 )
             }
         }
