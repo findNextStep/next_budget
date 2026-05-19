@@ -22,6 +22,7 @@ import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.FrameLayout
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -36,7 +37,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -51,8 +56,11 @@ import ai.findnextstep.budget.data.JsonTransactionRepository
 import ai.findnextstep.budget.logic.model.Category
 import ai.findnextstep.budget.logic.model.Transaction
 import ai.findnextstep.budget.logic.service.CategoryPredictor
+import ai.findnextstep.budget.logic.util.dayEpochMillisRange
 import ai.findnextstep.budget.ui.theme.CategoryColorMap
 import ai.findnextstep.budget.ui.theme.ExpenseRed
+import ai.findnextstep.budget.ui.theme.IncomeGreen
+import java.time.LocalDate
 
 /**
  * 系统级悬浮窗快速记账 Service。
@@ -247,8 +255,15 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
 
         val composeView = ComposeView(this).apply {
             setContent {
+                val (todayStart, todayEnd) = LocalDate.now().dayEpochMillisRange()
+                val allTxns = repository.getAll()
+                val todayIncome = allTxns.filter { it.timestamp in todayStart..todayEnd && it.amount > 0 }.sumOf { it.amount }
+                val todayExpense = allTxns.filter { it.timestamp in todayStart..todayEnd && it.amount < 0 }.sumOf { -it.amount }
+                val todayRatio = if (todayIncome > 0) (todayExpense / todayIncome).toFloat().coerceIn(0f, 1f) else 0f
+
                 FloatingWindowContent(
                     startExpanded = startExpanded,
+                    todayRatio = todayRatio,
                     onUpdatePosition = { dx, dy ->
                         val lp = overlayParams
                         if (lp != null) {
@@ -358,6 +373,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
 @Composable
 private fun FloatingWindowContent(
     startExpanded: Boolean = false,
+    todayRatio: Float = 0f,
     onUpdatePosition: (Float, Float) -> Unit,
     onExpandChanged: (Boolean) -> Unit,
     onClose: () -> Unit,
@@ -431,6 +447,7 @@ private fun FloatingWindowContent(
         }
     } else {
         CollapsedBubble(
+            ratio = todayRatio,
             onTap = {
                 expanded = true
                 onExpandChanged(true)
@@ -444,6 +461,7 @@ private fun FloatingWindowContent(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CollapsedBubble(
+    ratio: Float = 0f,
     onTap: () -> Unit,
     onDrag: (Float, Float) -> Unit,
     onClose: () -> Unit
@@ -473,18 +491,43 @@ private fun CollapsedBubble(
                 }
             }
     ) {
-        Surface(
-            shape = CircleShape,
-            color = ExpenseRed.copy(alpha = 0.75f),
+        Box(
             modifier = Modifier
                 .size(44.dp)
-                .shadow(8.dp, CircleShape)
+                .shadow(8.dp, CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                if (showClose) {
-                    Text("✕", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                } else {
-                    Text("¥", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            if (ratio > 0f) {
+                val ringColor = if (ratio < 0.6f) IncomeGreen else ExpenseRed
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val strokeWidth = 3.dp.toPx()
+                    val halfStroke = strokeWidth / 2
+                    val diameter = size.minDimension
+                    val topLeft = Offset(halfStroke, halfStroke)
+                    val arcSize = Size(diameter - strokeWidth, diameter - strokeWidth)
+                    drawArc(
+                        color = ringColor,
+                        startAngle = -90f,
+                        sweepAngle = 360f * ratio,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                    )
+                }
+            }
+
+            Surface(
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.55f),
+                modifier = Modifier.size(38.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (showClose) {
+                        Text("✕", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    } else {
+                        Text("¥", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
             }
         }
