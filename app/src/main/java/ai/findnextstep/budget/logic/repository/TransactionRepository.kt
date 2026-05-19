@@ -21,6 +21,9 @@ interface TransactionRepository {
     /** 删除一条账目 */
     fun delete(id: String)
 
+    /** 更新一条账目 */
+    fun update(transaction: Transaction)
+
     /** 获取总条数 */
     fun count(): Int
 

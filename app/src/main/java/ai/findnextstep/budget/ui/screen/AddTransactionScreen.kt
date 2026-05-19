@@ -12,24 +12,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ai.findnextstep.budget.logic.model.Category
+import ai.findnextstep.budget.logic.model.Transaction
 import ai.findnextstep.budget.ui.component.CategorySelector
 import ai.findnextstep.budget.ui.component.NumberPad
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
 import ai.findnextstep.budget.ui.viewmodel.Screen
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionScreen(
     viewModel: BudgetViewModel,
     isIncome: Boolean,
-    initialAmount: String = ""
+    initialAmount: String = "",
+    editingTransaction: Transaction? = null
 ) {
-    var amount by remember { mutableStateOf(initialAmount) }
-    var selectedCategory by remember { mutableStateOf<Category?>(null) }
-    var note by remember { mutableStateOf("") }
+    val isEditing = editingTransaction != null
+    val existingTxn = editingTransaction
+
+    var amount by remember {
+        mutableStateOf(
+            if (existingTxn != null) abs(existingTxn.amount).toBigDecimal().stripTrailingZeros().toPlainString()
+            else initialAmount
+        )
+    }
+    var selectedCategory by remember { mutableStateOf<Category?>(existingTxn?.category) }
+    var note by remember { mutableStateOf(existingTxn?.note ?: "") }
     val categories = if (isIncome) Category.incomeCategories else Category.expenseCategories
 
-    // 消费掉预填金额后清除 ViewModel 中的暂存，避免下次正常打开时误带
     LaunchedEffect(Unit) {
         if (initialAmount.isNotEmpty()) {
             viewModel.updateFloatingAmount("")
@@ -41,7 +51,7 @@ fun AddTransactionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isIncome) "记收入" else "记支出") },
+                title = { Text(if (isEditing) "编辑交易" else if (isIncome) "记收入" else "记支出") },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.goBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -57,12 +67,10 @@ fun AddTransactionScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 数字输入
             NumberPad(
                 value = amount,
                 onValueChange = { newVal ->
                     amount = newVal
-                    // 自动推断类型
                     val amt = newVal.toDoubleOrNull()
                     if (amt != null && amt > 0) {
                         val predicted = viewModel.categoryPredictor.predict(
@@ -75,8 +83,18 @@ fun AddTransactionScreen(
                     val amt = amount.toDoubleOrNull()
                     if (amt != null && amt > 0 && selectedCategory != null) {
                         val finalAmount = if (isIncome) amt else -amt
-                        viewModel.addTransaction(selectedCategory!!, finalAmount, note)
-                        viewModel.goBack()
+                        if (isEditing && existingTxn != null) {
+                            viewModel.updateTransaction(
+                                existingTxn.copy(
+                                    amount = finalAmount,
+                                    category = selectedCategory!!,
+                                    note = note
+                                )
+                            )
+                        } else {
+                            viewModel.addTransaction(selectedCategory!!, finalAmount, note)
+                            viewModel.goBack()
+                        }
                     }
                 },
                 showDecimal = true
@@ -84,7 +102,6 @@ fun AddTransactionScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 类型选择
             CategorySelector(
                 categories = categories,
                 selectedCategory = selectedCategory,
@@ -93,7 +110,6 @@ fun AddTransactionScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 备注
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
@@ -106,14 +122,23 @@ fun AddTransactionScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 确认按钮
             Button(
                 onClick = {
                     val amt = amount.toDoubleOrNull()
                     if (amt != null && amt > 0 && selectedCategory != null) {
                         val finalAmount = if (isIncome) amt else -amt
-                        viewModel.addTransaction(selectedCategory!!, finalAmount, note)
-                        viewModel.goBack()
+                        if (isEditing && existingTxn != null) {
+                            viewModel.updateTransaction(
+                                existingTxn.copy(
+                                    amount = finalAmount,
+                                    category = selectedCategory!!,
+                                    note = note
+                                )
+                            )
+                        } else {
+                            viewModel.addTransaction(selectedCategory!!, finalAmount, note)
+                            viewModel.goBack()
+                        }
                     }
                 },
                 enabled = amount.toDoubleOrNull() != null && (amount.toDoubleOrNull() ?: 0.0) > 0 && selectedCategory != null,
@@ -122,7 +147,7 @@ fun AddTransactionScreen(
                     .padding(horizontal = 16.dp)
                     .height(48.dp)
             ) {
-                Text("确认记账")
+                Text(if (isEditing) "保存修改" else "确认记账")
             }
 
             Spacer(modifier = Modifier.height(32.dp))

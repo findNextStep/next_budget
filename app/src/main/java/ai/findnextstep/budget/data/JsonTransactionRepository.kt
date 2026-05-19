@@ -90,6 +90,15 @@ class JsonTransactionRepository : TransactionRepository {
         save()
     }
 
+    @Synchronized
+    override fun update(transaction: Transaction) {
+        val idx = transactions.indexOfFirst { it.id == transaction.id }
+        if (idx >= 0) {
+            transactions[idx] = transaction
+            save()
+        }
+    }
+
     override fun count(): Int = transactions.size
 
     override fun getRecent(limit: Int): List<Transaction> {

@@ -1,13 +1,7 @@
 package ai.findnextstep.budget.ui.screen
 
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -16,23 +10,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.findnextstep.budget.logic.model.Category
-import ai.findnextstep.budget.logic.model.Transaction
+import ai.findnextstep.budget.logic.util.dayEpochMillisRange
 import ai.findnextstep.budget.ui.theme.ExpenseRed
-import ai.findnextstep.budget.ui.theme.categoryBackgroundAlpha
-import ai.findnextstep.budget.ui.theme.categoryForeground
 import ai.findnextstep.budget.ui.theme.IncomeGreen
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
 import ai.findnextstep.budget.ui.viewmodel.Screen
-import java.text.SimpleDateFormat
 import java.time.LocalDate
-import java.time.ZoneId
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -189,9 +177,7 @@ private fun TotalBalanceCard(totalIncome: Double, totalExpense: Double) {
 
 @Composable
 private fun TodaySummaryCard(uiState: BudgetUiState) {
-    val zone = ZoneId.systemDefault()
-    val todayStart = LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli()
-    val todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1
+    val (todayStart, todayEnd) = LocalDate.now().dayEpochMillisRange()
     val todayTxns = uiState.transactions.filter { it.timestamp in todayStart..todayEnd }
     val income = todayTxns.filter { it.amount > 0 }.sumOf { it.amount }
     val expense = todayTxns.filter { it.amount < 0 }.sumOf { -it.amount }
@@ -245,122 +231,6 @@ private fun LargeActionButton(
         colors = ButtonDefaults.buttonColors(containerColor = color)
     ) {
         Text(label, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
-    }
-}
-
-@Composable
-fun TransactionItem(txn: Transaction, onDelete: () -> Unit) {
-    val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 类型图标
-            val catColor = categoryForeground(txn.category.key, if (txn.isIncome) IncomeGreen else ExpenseRed)
-            val bgAlpha = categoryBackgroundAlpha()
-            Surface(
-                shape = CircleShape,
-                color = catColor.copy(alpha = bgAlpha),
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        txn.category.displayName.take(1),
-                        color = catColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(txn.category.displayName, fontWeight = FontWeight.Medium)
-                Text(
-                    dateFormat.format(Date(txn.timestamp)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
-            Text(
-                (if (txn.isIncome) "+" else "-") + "¥${"%.2f".format(kotlin.math.abs(txn.amount))}",
-                color = if (txn.isIncome) IncomeGreen else ExpenseRed,
-                fontWeight = FontWeight.Bold
-            )
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun FloatingWindowToggleCard(
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit
-) {
-    val context = LocalContext.current
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (enabled)
-                ExpenseRed.copy(alpha = 0.10f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.Star,
-                contentDescription = null,
-                tint = if (enabled) ExpenseRed else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "悬浮记账",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    if (enabled) "已开启 · 点击气泡记账" else "在其他应用上快速记账",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
-            }
-            Switch(
-                checked = enabled,
-                onCheckedChange = { checked ->
-                    if (checked) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                            !Settings.canDrawOverlays(context)
-                        ) {
-                            Toast.makeText(context, "请授予「显示在其他应用上层」权限", Toast.LENGTH_LONG).show()
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                            context.startActivity(intent)
-                        } else {
-                            onToggle(true)
-                        }
-                    } else {
-                        onToggle(false)
-                    }
-                }
-            )
-        }
     }
 }
 

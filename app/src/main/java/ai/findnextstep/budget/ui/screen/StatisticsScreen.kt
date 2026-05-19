@@ -28,10 +28,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import ai.findnextstep.budget.logic.model.CategorySummary
 import ai.findnextstep.budget.logic.model.DaySummary
 import ai.findnextstep.budget.logic.model.Period
+import ai.findnextstep.budget.logic.model.Transaction
+import ai.findnextstep.budget.logic.util.dayEpochMillisRange
 import ai.findnextstep.budget.ui.component.ExpenseHeatmap
 import ai.findnextstep.budget.ui.component.PeriodSelector
 import ai.findnextstep.budget.ui.theme.ExpenseRed
@@ -40,10 +43,13 @@ import ai.findnextstep.budget.ui.theme.categoryForeground
 import ai.findnextstep.budget.ui.theme.IncomeGreen
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
+import java.text.SimpleDateFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,14 +59,26 @@ fun StatisticsScreen(
 ) {
     val stats = uiState.periodStatistics
 
-    BackHandler(onBack = { viewModel.goBack() })
+    BackHandler(onBack = {
+        if (uiState.dayDetailDate != null) {
+            viewModel.closeDayDetail()
+        } else {
+            viewModel.goBack()
+        }
+    })
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("统计") },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.goBack() }) {
+                    IconButton(onClick = {
+                        if (uiState.dayDetailDate != null) {
+                            viewModel.closeDayDetail()
+                        } else {
+                            viewModel.goBack()
+                        }
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
@@ -115,61 +133,194 @@ fun StatisticsScreen(
                             .onSizeChanged { contentWidth = it.width.toFloat() },
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        item {
-                            if (stats != null) {
-                                SummaryHeader(stats)
-                            } else {
-                                Box(
-                                    modifier = Modifier.padding(32.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("暂无数据", style = MaterialTheme.typography.bodyLarge)
+                        if (uiState.dayDetailDate != null) {
+                            val detailDate = uiState.dayDetailDate
+                            val date = LocalDate.parse(detailDate)
+                            val (dayStart, dayEnd) = date.dayEpochMillisRange()
+                            val dayTxns = uiState.transactions
+                                .filter { it.timestamp in dayStart..dayEnd }
+                                .sortedByDescending { it.timestamp }
+
+                            item {
+                                Text(
+                                    "$detailDate 交易明细",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+
+                            if (dayTxns.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("当天无交易", style = MaterialTheme.typography.bodyMedium)
+                                    }
                                 }
                             }
-                        }
 
-                        if (stats != null && stats.daySummaries.isNotEmpty() &&
-                            (uiState.currentPeriod == Period.MONTH || uiState.currentPeriod == Period.YEAR)
-                        ) {
-                            item {
-                                ExpenseHeatmap(
-                                    daySummaries = stats.daySummaries,
-                                    period = uiState.currentPeriod
+                            items(dayTxns, key = { it.id }) { txn ->
+                                TransactionSummaryRow(
+                                    txn = txn,
+                                    onClick = { viewModel.navigateToEditTransaction(txn) }
                                 )
                             }
-                        }
-
-                        if (stats != null && stats.categorySummaries.isNotEmpty()) {
+                        } else {
                             item {
-                                Text(
-                                    "类型分布",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
+                                if (stats != null) {
+                                    SummaryHeader(stats)
+                                } else {
+                                    Box(
+                                        modifier = Modifier.padding(32.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("暂无数据", style = MaterialTheme.typography.bodyLarge)
+                                    }
+                                }
                             }
 
-                            item {
-                                CategoryPieChart(stats.categorySummaries)
+                            if (stats != null && stats.daySummaries.isNotEmpty() &&
+                                (uiState.currentPeriod == Period.MONTH || uiState.currentPeriod == Period.YEAR)
+                            ) {
+                                item {
+                                    ExpenseHeatmap(
+                                        daySummaries = stats.daySummaries,
+                                        period = uiState.currentPeriod
+                                    )
+                                }
                             }
-                        }
 
-                        if (stats != null && stats.daySummaries.isNotEmpty()) {
-                            item {
-                                Text(
-                                    "每日明细",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
+                            if (stats != null && stats.categorySummaries.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        "类型分布",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                }
+
+                                item {
+                                    CategoryPieChart(stats.categorySummaries)
+                                }
                             }
-                            items(stats.daySummaries) { day ->
-                                DaySummaryRow(day, uiState.currentPeriod)
-                            }
+
+                            if (uiState.currentPeriod == Period.DAY) {
+                                val date = uiState.referenceDate
+                                val (dayStart, dayEnd) = date.dayEpochMillisRange()
+                                val dayTxns = uiState.transactions
+                                    .filter { it.timestamp in dayStart..dayEnd }
+                                    .sortedByDescending { it.timestamp }
+
+                                if (dayTxns.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            "当日交易",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                        )
+                                    }
+                                    items(dayTxns, key = { it.id }) { txn ->
+                                        TransactionSummaryRow(
+                                            txn = txn,
+                                            onClick = { viewModel.navigateToEditTransaction(txn) }
+                                        )
+                                    }
+                                }
+                            } else if (stats != null && stats.daySummaries.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        "每日明细",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                }
+                                items(stats.daySummaries) { day ->
+                                    DaySummaryRow(
+                                        day = day,
+                                        period = uiState.currentPeriod,
+                                        onClick = { viewModel.openDayDetail(day.date) }
+                                    )
+                }
+            }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TransactionSummaryRow(
+    txn: Transaction,
+    onClick: () -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val catColor = categoryForeground(txn.category.key, if (txn.isIncome) IncomeGreen else ExpenseRed)
+    val bgAlpha = categoryBackgroundAlpha()
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        shape = RoundedCornerShape(6.dp),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = catColor.copy(alpha = bgAlpha),
+                modifier = Modifier.size(32.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        txn.category.displayName.take(1),
+                        color = catColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        txn.category.displayName,
+                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    if (txn.note.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            txn.note,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            maxLines = 1
+                        )
+                    }
+                }
+                Text(
+                    dateFormat.format(Date(txn.timestamp)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+            Text(
+                (if (txn.isIncome) "+" else "-") + "¥${"%.2f".format(kotlin.math.abs(txn.amount))}",
+                color = if (txn.isIncome) IncomeGreen else ExpenseRed,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
@@ -387,19 +538,19 @@ private fun formatReferenceDate(date: LocalDate, period: Period): String {
 }
 
 @Composable
-private fun DaySummaryRow(day: DaySummary, period: Period) {
-    // 提取日期展示文本
+private fun DaySummaryRow(day: DaySummary, period: Period, onClick: (() -> Unit)? = null) {
     val displayDate = if (period == Period.YEAR) {
-        day.date.substring(5) // MM-dd
+        day.date.substring(5)
     } else {
-        day.date.substring(if (day.date.length >= 10) 5 else 0) // MM-dd
+        day.date.substring(if (day.date.length >= 10) 5 else 0)
     }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 2.dp),
-        shape = RoundedCornerShape(6.dp)
+        shape = RoundedCornerShape(6.dp),
+        onClick = onClick ?: {}
     ) {
         Row(
             modifier = Modifier

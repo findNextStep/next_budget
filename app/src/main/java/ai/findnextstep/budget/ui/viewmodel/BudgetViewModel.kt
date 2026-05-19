@@ -38,7 +38,9 @@ data class BudgetUiState(
     val showFloatingInput: Boolean = false,
     val floatingAmount: String = "",
     val floatingCategory: Category? = null,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val editingTransaction: Transaction? = null,
+    val dayDetailDate: String? = null
 )
 
 enum class ThemeMode(val label: String) {
@@ -52,6 +54,7 @@ enum class Screen {
     MAIN,
     ADD_EXPENSE,
     ADD_INCOME,
+    EDIT_TRANSACTION,
     STATISTICS,
     SETTINGS
 }
@@ -165,13 +168,39 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     /** 返回主界面 */
     fun goBack() {
-        _uiState.update { it.copy(currentScreen = Screen.MAIN) }
+        _uiState.update { it.copy(currentScreen = Screen.MAIN, editingTransaction = null, dayDetailDate = null) }
     }
 
-    /** 设置统计周期 */
     fun setPeriod(period: Period) {
-        _uiState.update { it.copy(currentPeriod = period, referenceDate = LocalDate.now(), slideDirection = 0) }
+        _uiState.update { it.copy(currentPeriod = period, referenceDate = LocalDate.now(), slideDirection = 0, dayDetailDate = null) }
         refreshStatistics()
+    }
+
+    /** 跳转到编辑交易页面 */
+    fun navigateToEditTransaction(transaction: Transaction) {
+        _uiState.update {
+            it.copy(
+                currentScreen = Screen.EDIT_TRANSACTION,
+                editingTransaction = transaction
+            )
+        }
+    }
+
+    /** 更新交易 */
+    fun updateTransaction(transaction: Transaction) {
+        repository.update(transaction)
+        refreshTransactions()
+        goBack()
+    }
+
+    /** 打开日详情（从周/月/年视图点击某天） */
+    fun openDayDetail(date: String) {
+        _uiState.update { it.copy(dayDetailDate = date) }
+    }
+
+    /** 关闭日详情，返回周期视图 */
+    fun closeDayDetail() {
+        _uiState.update { it.copy(dayDetailDate = null) }
     }
 
     /** 翻到上一个周期 */

@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -51,6 +52,14 @@ class MainActivity : ComponentActivity() {
                         Screen.MAIN -> MainScreen(viewModel = viewModel, uiState = uiState)
                         Screen.ADD_EXPENSE -> AddTransactionScreen(viewModel = viewModel, isIncome = false, initialAmount = uiState.floatingAmount)
                         Screen.ADD_INCOME -> AddTransactionScreen(viewModel = viewModel, isIncome = true)
+                        Screen.EDIT_TRANSACTION -> {
+                            val txn = uiState.editingTransaction
+                            if (txn != null) {
+                                AddTransactionScreen(viewModel = viewModel, isIncome = txn.isIncome, editingTransaction = txn)
+                            } else {
+                                LaunchedEffect(Unit) { viewModel.goBack() }
+                            }
+                        }
                         Screen.STATISTICS -> StatisticsScreen(viewModel = viewModel, uiState = uiState)
                         Screen.SETTINGS -> SettingsScreen(viewModel = viewModel, uiState = uiState)
                     }
