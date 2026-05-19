@@ -4,23 +4,28 @@
 
 ## 功能
 
-- **记账**：记录收入/支出，支持预定义及自定义分类（主食、饮料、零食、房租、交通、购物等 20+ 类），可添加备注
-- **日薪自动入账**：设置月收入后自动折算为日薪，每日 12:00 自动录入（支持后台触发）
-- **智能分类推测**：根据历史交易中同数额的记录自动推断分类
-- **多维度统计**：支持日 / 周 / 月 / 年维度，按分类查看每日开销分布
-- **浮动窗口快速记账**：通过悬浮窗在其他应用之上快速记录支出，支持拖拽移动、长按关闭
-- **悬浮球个性化**：可调节气泡大小（44dp）、半透明背景，支持隐藏提示文本
-- **快捷开关磁贴**：通知栏快捷设置面板一键开关悬浮记账（需手动拖入磁贴）
-- **CSV 导入导出**：支持从 CSV 文件批量导入历史账目，导出当前全部记录
-- **主题切换**：白色 / 黑色 / 纯黑（OLED 友好）三套主题
+- **记账**：记录收入/支出，支持 20+ 种预定义分类，可添加备注
+- **编辑交易**：点击历史记录可修改金额、分类和备注
+- **日薪自动入账**：设置月收入后自动折算为日薪，每日自动录入
+- **智能分类推测**：根据历史同数额记录自动推断分类
+- **悬浮窗快速记账**：在其他应用之上通过悬浮气泡快速记录支出，支持拖拽、长按关闭
+- **悬浮球环形进度**：气泡边缘显示今日支出占收入比例（绿色 < 60%，红色 ≥ 60%）
+- **悬浮窗「其他」跳转**：输入金额后点击「其他」跳转到完整记账页选择细分类别
+- **数字键盘震动反馈**：按键时数字键轻震、操作键强震
+- **GitHub 风格热力图**：月视图每日格子、年视图每周格子，直观展示支出密度
+- **前后周期导航**：统计页左右滑动切换时间周期，带平滑过渡动画
+- **日详情钻取**：周/月/年视图点击某天展开当日交易列表，支持返回上层
+- **快捷开关磁贴**：通知栏一键开关悬浮记账
+- **CSV 导入导出**：批量导入历史账目，导出当前全部记录
+- **深色/纯黑主题**：适配不同使用场景
 
 ## 技术栈
 
 | 类别 | 选型 |
 |------|------|
-| 语言 | Kotlin 1.9.24 |
+| 语言 | Kotlin |
 | UI 框架 | Jetpack Compose + Material 3 |
-| 构建 | Gradle 8.11.1, AGP 8.7.3 |
+| 构建 | Gradle, AGP |
 | 最低 SDK | Android 8.0 (API 26) |
 | 目标 SDK | Android 14 (API 34) |
 | 持久化 | JSON 文件存储 |
@@ -30,79 +35,60 @@
 
 ```
 app/src/main/java/ai/findnextstep/budget/
-├── MainActivity.kt              # 唯一 Activity，入口
-├── logic/                       # 逻辑层（与 UI 无关）
+├── MainActivity.kt
+├── logic/
 │   ├── model/
-│   │   ├── Transaction.kt       # 交易记录数据类
-│   │   ├── Category.kt          # 分类定义（20+ 预置类型）
-│   │   ├── Statistics.kt        # 统计数据模型
-│   │   └── Period.kt            # 时间周期枚举
+│   │   ├── Transaction.kt
+│   │   ├── Category.kt
+│   │   ├── Statistics.kt
+│   │   └── Period.kt
 │   ├── repository/
-│   │   └── TransactionRepository.kt  # 数据仓库接口
-│   └── service/
-│       ├── StatisticsService.kt      # 统计计算服务
-│       ├── SalaryService.kt          # 日薪自动入账服务
-│       ├── CategoryPredictor.kt      # 基于历史数据的分类推测
-│       └── CsvService.kt             # CSV 导入导出服务
+│   │   └── TransactionRepository.kt
+│   ├── service/
+│   │   ├── StatisticsService.kt
+│   │   ├── SalaryService.kt
+│   │   ├── CategoryPredictor.kt
+│   │   └── CsvService.kt
+│   └── util/
+│       └── DateUtils.kt
 ├── data/
-│   └── JsonTransactionRepository.kt  # JSON 文件持久化实现
-└── ui/                          # UI 层
+│   └── JsonTransactionRepository.kt
+└── ui/
     ├── screen/
-    │   ├── MainScreen.kt             # 主界面
-    │   ├── AddTransactionScreen.kt   # 记账面板（含数字输入器）
-    │   ├── StatisticsScreen.kt       # 统计页面
-    │   └── SettingsScreen.kt         # 设置页面
+    │   ├── MainScreen.kt
+    │   ├── AddTransactionScreen.kt
+    │   ├── StatisticsScreen.kt
+    │   └── SettingsScreen.kt
     ├── component/
-    │   ├── NumberPad.kt              # 数字键盘组件
-    │   ├── CategorySelector.kt       # 分类选择器
-    │   └── PeriodSelector.kt         # 时间周期选择器
+    │   ├── NumberPad.kt
+    │   ├── CategorySelector.kt
+    │   ├── PeriodSelector.kt
+    │   └── ExpenseHeatmap.kt
     ├── service/
-    │   ├── FloatingExpenseService.kt # 悬浮窗快速记账 Service
-    │   └── FloatingTileService.kt   # 快捷开关磁贴 Service
+    │   ├── FloatingExpenseService.kt
+    │   └── FloatingTileService.kt
     ├── viewmodel/
-    │   └── BudgetViewModel.kt        # 全局 ViewModel
+    │   └── BudgetViewModel.kt
     └── theme/
-        ├── Color.kt                  # 颜色定义
-        ├── Theme.kt                  # 主题（白色/黑色/纯黑）
-        └── Type.kt                   # 字体定义
+        ├── Color.kt
+        ├── Theme.kt
+        └── Type.kt
 ```
-
-## CSV 格式
-
-导入导出的 CSV 文件包含以下列：
-
-| 列名 | 说明 |
-|------|------|
-| date | 日期，格式 `YYYY-MM-DD` |
-| time | 时间，格式 `HH:MM` |
-| amount | 金额，正数为收入、负数为支出 |
-| original category | 原始分类 key |
-| category | 最终分类 key |
-
-参考 `example.csv` 了解具体格式。
 
 ## 构建
 
 ```bash
-# macOS / Linux
 ./gradlew assembleDebug
-
-# Windows
-gradlew.bat assembleDebug
 ```
 
-生成的 APK 位于 `app/build/outputs/apk/debug/`。
+APK 位于 `app/build/outputs/apk/debug/`。
 
-## 权限说明
+## 权限
 
 | 权限 | 用途 |
 |------|------|
 | `SYSTEM_ALERT_WINDOW` | 悬浮窗快速记账 |
-| `FOREGROUND_SERVICE` | 前台服务保活（日薪自动入账） |
-| `FOREGROUND_SERVICE_SPECIAL_USE` | Android 14+ 前台服务类型声明 |
+| `FOREGROUND_SERVICE` | 前台服务 |
+| `FOREGROUND_SERVICE_SPECIAL_USE` | Android 14+ 前台服务类型 |
 | `POST_NOTIFICATIONS` | Android 13+ 通知权限 |
 | `BIND_QUICK_SETTINGS_TILE` | 快捷开关磁贴 |
-
-## License
-
-MIT
