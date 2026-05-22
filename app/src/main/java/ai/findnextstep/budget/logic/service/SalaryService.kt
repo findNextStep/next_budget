@@ -10,7 +10,7 @@ import java.time.ZoneId
 
 /**
  * 稳定收入模块。
- * 根据月收入按当月天数折算日薪，每日 12:00 自动入账。
+ * 根据月收入按当月天数折算日薪，每日 0:00 自动入账。
  * 若对应时间 app 未打开，在下次调用 [processPendingDeposits] 时补录。
  */
 class SalaryService(private val repository: TransactionRepository) {
@@ -64,7 +64,7 @@ class SalaryService(private val repository: TransactionRepository) {
     /**
      * 处理待入账项。
      * 从上次入账日期的次日开始，到昨天为止，
-     * 对每一天检查是否已过 12:00，若是则补录日薪。
+     * 对每一天检查是否已过 0:00，若是则补录日薪。
      *
      * 调用时机：app 启动或从后台恢复时。
      */
@@ -85,7 +85,7 @@ class SalaryService(private val repository: TransactionRepository) {
         }
 
         val now = LocalTime.now()
-        val depositTime = LocalTime.of(12, 0)
+        val depositTime = LocalTime.of(0, 0)
 
         var checkDate = startCheckDate
         while (checkDate.isBefore(today) || (checkDate == today && !now.isBefore(depositTime))) {
@@ -110,15 +110,14 @@ class SalaryService(private val repository: TransactionRepository) {
 
         // 更新最后入账日期。
         // checkDate 是循环结束后第一个未处理的日期：
-        // - 若今天已过 12:00，checkDate == 明天 → 最后处理的是今天
-        // - 若今天未到 12:00，checkDate == 今天 → 最后处理的是昨天
-        // - 若 cycle 完全没进（首次打开且未到 12:00），不做更新
+        // - 若今天已过 0:00，checkDate == 明天 → 最后处理的是今天
+        // - 首次打开，checkDate == 今天 → 处理今天
         val lastSettled = checkDate.minusDays(1)
         if (!lastSettled.isBefore(startCheckDate)) {
             // 至少处理了一个日期
             lastDepositDate = lastSettled.toString()
         } else if (lastDepositDate == null) {
-            // 首次打开且未到 12:00，标记昨天为已结算，下次打开可补录今天
+            // 首次打开未处理任何日期，标记昨天为已结算
             lastDepositDate = today.minusDays(1).toString()
         }
 
