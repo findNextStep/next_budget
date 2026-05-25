@@ -88,6 +88,32 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
     private var bubbleX = 0
     private var bubbleY = 300
 
+    /** 将气泡坐标钳位到屏幕可见范围内 */
+    private fun clampToScreen(x: Int, y: Int): Pair<Int, Int> {
+        val metrics = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            windowManager.currentWindowMetrics.bounds
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.let { display ->
+                val out = android.graphics.Rect()
+                display.getRealSize(android.graphics.Point().also { p -> display.getRealSize(p) })
+                android.graphics.Rect(0, 0, out.width(), out.height())
+                // Hmm, getRealSize returns point but I need Rect
+                // Let me use a simpler approach
+                val p = android.graphics.Point()
+                @Suppress("DEPRECATION")
+                display.getRealSize(p)
+                android.graphics.Rect(0, 0, p.x, p.y)
+            }
+        }
+        // Bubble size is 44dp, convert to approximate px (using density)
+        val density = resources.displayMetrics.density
+        val bubbleSize = (44 * density).toInt()
+        val cx = x.coerceIn(0, (metrics.width() - bubbleSize).coerceAtLeast(0))
+        val cy = y.coerceIn(0, (metrics.height() - bubbleSize).coerceAtLeast(0))
+        return cx to cy
+    }
+
     companion object {
         private const val CHANNEL_ID = "budget_floating"
         private const val NOTIFICATION_ID = 1001
@@ -137,8 +163,11 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
 
         // 恢复气泡位置
         val prefs = getSharedPreferences("budget_prefs", 0)
-        bubbleX = prefs.getInt(PREF_FLOATING_X, 0)
-        bubbleY = prefs.getInt(PREF_FLOATING_Y, 300)
+        val savedX = prefs.getInt(PREF_FLOATING_X, 0)
+        val savedY = prefs.getInt(PREF_FLOATING_Y, 300)
+        val clamped = clampToScreen(savedX, savedY)
+        bubbleX = clamped.first
+        bubbleY = clamped.second
         hideHintState.value = prefs.getBoolean(PREF_HIDE_HINT, false)
 
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
@@ -267,10 +296,13 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
                     onUpdatePosition = { dx, dy ->
                         val lp = overlayParams
                         if (lp != null) {
-                            lp.x += dx.toInt()
-                            lp.y += dy.toInt()
-                            bubbleX = lp.x
-                            bubbleY = lp.y
+                            val newX = lp.x + dx.toInt()
+                            val newY = lp.y + dy.toInt()
+                            val (cx, cy) = clampToScreen(newX, newY)
+                            lp.x = cx
+                            lp.y = cy
+                            bubbleX = cx
+                            bubbleY = cy
                             try {
                                 windowManager.updateViewLayout(overlayView, lp)
                             } catch (_: Exception) {}
