@@ -84,34 +84,52 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
     private val repository = JsonTransactionRepository()
     private val categoryPredictor by lazy { CategoryPredictor(repository) }
 
-    // 当前气泡位置（屏幕像素坐标）
+    // 当前气泡位置（像素坐标）
     private var bubbleX = 0
     private var bubbleY = 300
 
-    /** 将气泡坐标钳位到屏幕可见范围内 */
-    private fun clampToScreen(x: Int, y: Int): Pair<Int, Int> {
+    /** 获取当前屏幕尺寸（像素） */
+    private fun getScreenSize(): Pair<Int, Int> {
         val metrics = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             windowManager.currentWindowMetrics.bounds
         } else {
             @Suppress("DEPRECATION")
-            windowManager.defaultDisplay.let { display ->
-                val out = android.graphics.Rect()
-                display.getRealSize(android.graphics.Point().also { p -> display.getRealSize(p) })
-                android.graphics.Rect(0, 0, out.width(), out.height())
-                // Hmm, getRealSize returns point but I need Rect
-                // Let me use a simpler approach
-                val p = android.graphics.Point()
-                @Suppress("DEPRECATION")
-                display.getRealSize(p)
-                android.graphics.Rect(0, 0, p.x, p.y)
-            }
+            val p = android.graphics.Point()
+            windowManager.defaultDisplay.getRealSize(p)
+            android.graphics.Rect(0, 0, p.x, p.y)
         }
-        // Bubble size is 44dp, convert to approximate px (using density)
-        val density = resources.displayMetrics.density
-        val bubbleSize = (44 * density).toInt()
-        val cx = x.coerceIn(0, (metrics.width() - bubbleSize).coerceAtLeast(0))
-        val cy = y.coerceIn(0, (metrics.height() - bubbleSize).coerceAtLeast(0))
-        return cx to cy
+        return metrics.width() to metrics.height()
+    }
+
+    /** 气泡尺寸（像素） */
+    private fun bubbleSizePx(): Int = (44 * resources.displayMetrics.density).toInt()
+
+    /** 将气泡比例坐标转换为像素坐标 */
+    private fun ratioToPixel(xRatio: Float, yRatio: Float): Pair<Int, Int> {
+        val (sw, sh) = getScreenSize()
+        val bs = bubbleSizePx()
+        val x = (xRatio * (sw - bs)).toInt().coerceIn(0, (sw - bs).coerceAtLeast(0))
+        val y = (yRatio * (sh - bs)).toInt().coerceIn(0, (sh - bs).coerceAtLeast(0))
+        return x to y
+    }
+
+    /** 将像素坐标转为比例坐标 */
+    private fun pixelToRatio(x: Int, y: Int): Pair<Float, Float> {
+        val (sw, sh) = getScreenSize()
+        val bs = bubbleSizePx()
+        val maxX = (sw - bs).coerceAtLeast(1)
+        val maxY = (sh - bs).coerceAtLeast(1)
+        return (x.toFloat() / maxX).coerceIn(0f, 1f) to (y.toFloat() / maxY).coerceIn(0f, 1f)
+    }
+
+    /** 将气泡 X 坐标吸附到屏幕左/右边缘 */
+    private fun snapToEdge(x: Int): Int {
+        val (sw, _) = getScreenSize()
+        val bs = bubbleSizePx()
+        val maxX = (sw - bs).coerceAtLeast(0)
+        val leftDist = x
+        val rightDist = maxX - x
+        return if (leftDist <= rightDist) 0 else maxX
     }
 
     companion object {
@@ -121,8 +139,8 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         const val ACTION_STOP = "ai.findnextstep.budget.STOP_FLOATING"
         const val EXTRA_START_EXPANDED = "start_expanded"
         const val PREF_FLOATING_ENABLED = "floating_window_enabled"
-        const val PREF_FLOATING_X = "floating_bubble_x"
-        const val PREF_FLOATING_Y = "floating_bubble_y"
+        const val PREF_FLOATING_X_RATIO = "floating_bubble_x_ratio"
+        const val PREF_FLOATING_Y_RATIO = "floating_bubble_y_ratio"
         const val PREF_HIDE_HINT = "floating_hide_hint"
 
         val hideHintState = mutableStateOf(false)
@@ -161,13 +179,13 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         val dataPath = filesDir.resolve("transactions.json").absolutePath
         repository.load(dataPath)
 
-        // 恢复气泡位置
+        // 恢复气泡位置（使用比例存储，适配横竖屏切换）
         val prefs = getSharedPreferences("budget_prefs", 0)
-        val savedX = prefs.getInt(PREF_FLOATING_X, 0)
-        val savedY = prefs.getInt(PREF_FLOATING_Y, 300)
-        val clamped = clampToScreen(savedX, savedY)
-        bubbleX = clamped.first
-        bubbleY = clamped.second
+        val xRatio = prefs.getFloat(PREF_FLOATING_X_RATIO, 0f)
+        val yRatio = prefs.getFloat(PREF_FLOATING_Y_RATIO, 0.3f)
+        val (px, py) = ratioToPixel(xRatio, yRatio)
+        bubbleX = snapToEdge(px)
+        bubbleY = py
         hideHintState.value = prefs.getBoolean(PREF_HIDE_HINT, false)
 
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
@@ -195,6 +213,26 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 屏幕旋转后按比例重新计算像素位置，吸附边缘
+        val prefs = getSharedPreferences("budget_prefs", 0)
+        val xRatio = prefs.getFloat(PREF_FLOATING_X_RATIO, 0f)
+        val yRatio = prefs.getFloat(PREF_FLOATING_Y_RATIO, 0.3f)
+        val (px, py) = ratioToPixel(xRatio, yRatio)
+        bubbleX = snapToEdge(px)
+        bubbleY = py
+        // 如果当前是收起状态，更新 overlay 位置
+        val lp = overlayParams
+        if (lp != null && lp.width == WindowManager.LayoutParams.WRAP_CONTENT) {
+            lp.x = bubbleX
+            lp.y = bubbleY
+            try {
+                windowManager.updateViewLayout(overlayView, lp)
+            } catch (_: Exception) {}
+        }
+    }
 
     override fun onDestroy() {
         savedStateRegistryController.performSave(Bundle())
@@ -298,20 +336,34 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
                         if (lp != null) {
                             val newX = lp.x + dx.toInt()
                             val newY = lp.y + dy.toInt()
-                            val (cx, cy) = clampToScreen(newX, newY)
-                            lp.x = cx
-                            lp.y = cy
-                            bubbleX = cx
-                            bubbleY = cy
+                            val (sw, sh) = getScreenSize()
+                            val bs = bubbleSizePx()
+                            lp.x = newX.coerceIn(0, (sw - bs).coerceAtLeast(0))
+                            lp.y = newY.coerceIn(0, (sh - bs).coerceAtLeast(0))
+                            bubbleX = lp.x
+                            bubbleY = lp.y
                             try {
                                 windowManager.updateViewLayout(overlayView, lp)
                             } catch (_: Exception) {}
-                            // 持久化位置
-                            getSharedPreferences("budget_prefs", 0).edit()
-                                .putInt(PREF_FLOATING_X, bubbleX)
-                                .putInt(PREF_FLOATING_Y, bubbleY)
-                                .apply()
                         }
+                    },
+                    onDragEnd = {
+                        // 吸附到左/右边缘
+                        val snappedX = snapToEdge(bubbleX)
+                        val lp = overlayParams
+                        if (lp != null) {
+                            lp.x = snappedX
+                            bubbleX = snappedX
+                            try {
+                                windowManager.updateViewLayout(overlayView, lp)
+                            } catch (_: Exception) {}
+                        }
+                        // 以比例坐标持久化，适配屏幕切换
+                        val (rx, ry) = pixelToRatio(bubbleX, bubbleY)
+                        getSharedPreferences("budget_prefs", 0).edit()
+                            .putFloat(PREF_FLOATING_X_RATIO, rx)
+                            .putFloat(PREF_FLOATING_Y_RATIO, ry)
+                            .apply()
                     },
                     onExpandChanged = { expanded ->
                         val lp = overlayParams
@@ -407,6 +459,7 @@ private fun FloatingWindowContent(
     startExpanded: Boolean = false,
     todayRatio: Float = 0f,
     onUpdatePosition: (Float, Float) -> Unit,
+    onDragEnd: () -> Unit,
     onExpandChanged: (Boolean) -> Unit,
     onClose: () -> Unit,
     onOpenInMainApp: (String) -> Unit,
@@ -485,6 +538,7 @@ private fun FloatingWindowContent(
                 onExpandChanged(true)
             },
             onDrag = { dx, dy -> onUpdatePosition(dx, dy) },
+            onDragEnd = onDragEnd,
             onClose = onClose
         )
     }
@@ -496,6 +550,7 @@ private fun CollapsedBubble(
     ratio: Float = 0f,
     onTap: () -> Unit,
     onDrag: (Float, Float) -> Unit,
+    onDragEnd: () -> Unit,
     onClose: () -> Unit
 ) {
     var showClose by remember { mutableStateOf(false) }
@@ -515,7 +570,10 @@ private fun CollapsedBubble(
             )
             .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragEnd = { showClose = false },
+                    onDragEnd = {
+                        showClose = false
+                        onDragEnd()
+                    },
                     onDragCancel = { showClose = false }
                 ) { change, dragAmount ->
                     change.consume()

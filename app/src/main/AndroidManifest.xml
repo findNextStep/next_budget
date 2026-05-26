@@ -34,7 +34,8 @@
         <service
             android:name=".ui.service.FloatingExpenseService"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
 
         <service
             android:name=".ui.service.FloatingTileService"
