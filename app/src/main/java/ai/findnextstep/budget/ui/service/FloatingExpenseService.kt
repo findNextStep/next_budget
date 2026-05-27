@@ -60,7 +60,9 @@ import ai.findnextstep.budget.logic.util.dayEpochMillisRange
 import ai.findnextstep.budget.ui.theme.CategoryColorMap
 import ai.findnextstep.budget.ui.theme.ExpenseRed
 import ai.findnextstep.budget.ui.theme.IncomeGreen
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * 系统级悬浮窗快速记账 Service。
@@ -142,6 +144,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         const val PREF_FLOATING_X_RATIO = "floating_bubble_x_ratio"
         const val PREF_FLOATING_Y_RATIO = "floating_bubble_y_ratio"
         const val PREF_HIDE_HINT = "floating_hide_hint"
+        const val PREF_RING_PERIOD = "floating_ring_period"
 
         val hideHintState = mutableStateOf(false)
 
@@ -322,15 +325,36 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
 
         val composeView = ComposeView(this).apply {
             setContent {
-                val (todayStart, todayEnd) = LocalDate.now().dayEpochMillisRange()
+                val prefs = getSharedPreferences("budget_prefs", 0)
+                val ringPeriod = prefs.getString(PREF_RING_PERIOD, "DAY") ?: "DAY"
+
                 val allTxns = repository.getAll()
-                val todayIncome = allTxns.filter { it.timestamp in todayStart..todayEnd && it.amount > 0 }.sumOf { it.amount }
-                val todayExpense = allTxns.filter { it.timestamp in todayStart..todayEnd && it.amount < 0 }.sumOf { -it.amount }
-                val todayRatio = if (todayIncome > 0) (todayExpense / todayIncome).toFloat().coerceIn(0f, 1f) else 0f
+                val today = LocalDate.now()
+                val zone = ZoneId.systemDefault()
+                val (rangeStart, rangeEnd) = when (ringPeriod) {
+                    "WEEK" -> {
+                        val mon = today.with(DayOfWeek.MONDAY)
+                        mon.atStartOfDay(zone).toInstant().toEpochMilli() to
+                        today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+                    }
+                    "MONTH" -> {
+                        today.withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli() to
+                        today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+                    }
+                    "YEAR" -> {
+                        today.withDayOfYear(1).atStartOfDay(zone).toInstant().toEpochMilli() to
+                        today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+                    }
+                    else -> today.dayEpochMillisRange() // DAY
+                }
+
+                val periodIncome = allTxns.filter { it.timestamp in rangeStart..rangeEnd && it.amount > 0 }.sumOf { it.amount }
+                val periodExpense = allTxns.filter { it.timestamp in rangeStart..rangeEnd && it.amount < 0 }.sumOf { -it.amount }
+                val ringRatio = if (periodIncome > 0) (periodExpense / periodIncome).toFloat().coerceIn(0f, 1f) else 0f
 
                 FloatingWindowContent(
                     startExpanded = startExpanded,
-                    todayRatio = todayRatio,
+                    todayRatio = ringRatio,
                     onUpdatePosition = { dx, dy ->
                         val lp = overlayParams
                         if (lp != null) {

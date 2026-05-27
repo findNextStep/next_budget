@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
 import ai.findnextstep.budget.ui.viewmodel.ThemeMode
+import ai.findnextstep.budget.ui.service.FloatingExpenseService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -210,6 +211,33 @@ fun SettingsScreen(
                     checked = uiState.hideHint,
                     onCheckedChange = { viewModel.setHideHint(it) }
                 )
+            }
+
+            // 环形进度周期
+            val prefs = context.getSharedPreferences("budget_prefs", 0)
+            var ringPeriod by remember { mutableStateOf(prefs.getString(FloatingExpenseService.PREF_RING_PERIOD, "DAY") ?: "DAY") }
+            val ringPeriods = listOf("DAY" to "日", "WEEK" to "周", "MONTH" to "月", "YEAR" to "年")
+
+            Text("环形进度周期", style = MaterialTheme.typography.bodyLarge)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ringPeriods.forEach { (key, label) ->
+                    FilterChip(
+                        selected = ringPeriod == key,
+                        onClick = {
+                            ringPeriod = key
+                            prefs.edit().putString(FloatingExpenseService.PREF_RING_PERIOD, key).apply()
+                            // 重启悬浮窗使环形进度立即生效
+                            if (uiState.floatingWindowEnabled) {
+                                FloatingExpenseService.stop(context)
+                                FloatingExpenseService.start(context)
+                            }
+                        },
+                        label = { Text(label) }
+                    )
+                }
             }
 
             // 快捷开关提示
