@@ -55,6 +55,7 @@ enum class Screen {
     ADD_EXPENSE,
     ADD_INCOME,
     EDIT_TRANSACTION,
+    AMORTIZE_EXPENSE,
     STATISTICS,
     SETTINGS
 }
@@ -201,6 +202,53 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     /** 关闭日详情，返回周期视图 */
     fun closeDayDetail() {
         _uiState.update { it.copy(dayDetailDate = null) }
+    }
+
+    /** 长期分摊：在下一完整周期内每日生成一笔支出 */
+    fun addAmortizedExpense(
+        totalAmount: Double,
+        category: Category,
+        duration: String,
+        note: String
+    ) {
+        val today = LocalDate.now()
+        val zone = java.time.ZoneId.systemDefault()
+
+        val (startDate, days) = when (duration) {
+            "WEEK" -> {
+                val nextMon = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
+                nextMon to 7
+            }
+            "MONTH" -> {
+                today.plusMonths(1).withDayOfMonth(1) to today.plusMonths(1).lengthOfMonth()
+            }
+            "TWO_MONTHS" -> {
+                val first = today.plusMonths(1).withDayOfMonth(1)
+                val last = today.plusMonths(2)
+                first to java.time.Period.between(first, last.withDayOfMonth(1)).days + last.lengthOfMonth()
+            }
+            "YEAR" -> {
+                java.time.LocalDate.of(today.year + 1, 1, 1) to java.time.Year.of(today.year + 1).length()
+            }
+            else -> return
+        }
+
+        val dailyAmount = totalAmount / days
+        val baseTs = startDate.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+
+        for (d in 0 until days) {
+            repository.add(
+                Transaction.create(
+                    category = category,
+                    amount = -dailyAmount,
+                    timestamp = baseTs + d * 24 * 60 * 60 * 1000L,
+                    note = "$note (${d + 1}/$days)"
+                )
+            )
+        }
+
+        refreshTransactions()
+        goBack()
     }
 
     /** 翻到上一个周期 */

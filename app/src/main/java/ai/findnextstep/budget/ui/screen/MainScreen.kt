@@ -95,6 +95,18 @@ fun MainScreen(
                         onClick = { viewModel.navigateTo(Screen.ADD_EXPENSE) },
                         modifier = Modifier.weight(1f)
                     )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    LargeActionButton(
+                        label = "长期支出",
+                        color = ExpenseRed.copy(alpha = 0.8f),
+                        onClick = { viewModel.navigateTo(Screen.AMORTIZE_EXPENSE) },
+                        modifier = Modifier.weight(1f)
+                    )
                     Spacer(modifier = Modifier.width(16.dp))
                     LargeActionButton(
                         label = "+ 收入",

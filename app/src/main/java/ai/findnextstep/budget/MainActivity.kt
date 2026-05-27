@@ -52,6 +52,7 @@ class MainActivity : ComponentActivity() {
                         Screen.MAIN -> MainScreen(viewModel = viewModel, uiState = uiState)
                         Screen.ADD_EXPENSE -> AddTransactionScreen(viewModel = viewModel, isIncome = false, initialAmount = uiState.floatingAmount)
                         Screen.ADD_INCOME -> AddTransactionScreen(viewModel = viewModel, isIncome = true)
+                        Screen.AMORTIZE_EXPENSE -> AmortizeTransactionScreen(viewModel = viewModel)
                         Screen.EDIT_TRANSACTION -> {
                             val txn = uiState.editingTransaction
                             if (txn != null) {
