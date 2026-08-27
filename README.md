@@ -17,6 +17,7 @@
 - **日详情钻取**：周/月/年视图点击某天展开当日交易列表，支持返回上层
 - **快捷开关磁贴**：通知栏一键开关悬浮记账
 - **CSV 导入导出**：批量导入历史账目，导出当前全部记录
+- **Coding Plan 用量**：主页卡片展示 Kimi Code（Coding Plan 订阅）用量，手动刷新，未配置时可关闭引导
 - **深色/纯黑主题**：适配不同使用场景
 
 ## 技术栈
@@ -41,6 +42,7 @@ app/src/main/java/ai/findnextstep/budget/
 │   │   ├── Transaction.kt
 │   │   ├── Category.kt
 │   │   ├── Statistics.kt
+│   │   ├── UsageSnapshot.kt
 │   │   └── Period.kt
 │   ├── repository/
 │   │   └── TransactionRepository.kt
@@ -48,7 +50,11 @@ app/src/main/java/ai/findnextstep/budget/
 │   │   ├── StatisticsService.kt
 │   │   ├── SalaryService.kt
 │   │   ├── CategoryPredictor.kt
-│   │   └── CsvService.kt
+│   │   ├── CsvService.kt
+│   │   └── codingplan/
+│   │       ├── CodingPlanProvider.kt
+│   │       ├── KimiCodingPlanProvider.kt
+│   │       └── KimiUsageParser.kt
 │   └── util/
 │       └── DateUtils.kt
 ├── data/
@@ -63,6 +69,7 @@ app/src/main/java/ai/findnextstep/budget/
     │   ├── NumberPad.kt
     │   ├── CategorySelector.kt
     │   ├── PeriodSelector.kt
+    │   ├── CodingPlanCard.kt
     │   └── ExpenseHeatmap.kt
     ├── service/
     │   ├── FloatingExpenseService.kt
@@ -92,3 +99,4 @@ APK 位于 `app/build/outputs/apk/debug/`。
 | `FOREGROUND_SERVICE_SPECIAL_USE` | Android 14+ 前台服务类型 |
 | `POST_NOTIFICATIONS` | Android 13+ 通知权限 |
 | `BIND_QUICK_SETTINGS_TILE` | 快捷开关磁贴 |
+| `INTERNET` | Coding Plan 用量查询 |

@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
 import ai.findnextstep.budget.ui.viewmodel.BudgetViewModel
@@ -151,6 +152,30 @@ fun SettingsScreen(
             ) {
                 Text("主题：${uiState.themeMode.label}")
             }
+
+            HorizontalDivider()
+
+            // ── Coding Plan 用量 ──
+            Text("Coding Plan 用量", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+            var kimiKeyStr by remember { mutableStateOf(uiState.kimiApiKey) }
+            OutlinedTextField(
+                value = kimiKeyStr,
+                onValueChange = { newVal ->
+                    kimiKeyStr = newVal.trim()
+                    viewModel.setKimiApiKey(kimiKeyStr)
+                },
+                label = { Text("Kimi Code API Key") },
+                placeholder = { Text("sk-kimi-...") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                "在 Kimi Code 控制台创建 sk-kimi- 开头的 Key；配置后主页可手动刷新查看用量",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
 
             HorizontalDivider()
 

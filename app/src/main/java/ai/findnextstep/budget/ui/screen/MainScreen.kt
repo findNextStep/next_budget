@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.findnextstep.budget.logic.model.Category
 import ai.findnextstep.budget.logic.util.dayEpochMillisRange
+import ai.findnextstep.budget.ui.component.CodingPlanCard
 import ai.findnextstep.budget.ui.theme.ExpenseRed
 import ai.findnextstep.budget.ui.theme.IncomeGreen
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
@@ -75,6 +76,20 @@ fun MainScreen(
                 // ── 本日概览 ──
                 item {
                     TodaySummaryCard(uiState)
+                }
+
+                // ── Coding Plan 用量 ──
+                item {
+                    CodingPlanCard(
+                        apiKey = uiState.kimiApiKey,
+                        usage = uiState.kimiUsage,
+                        loading = uiState.kimiUsageLoading,
+                        error = uiState.kimiUsageError,
+                        guideDismissed = uiState.codingPlanGuideDismissed,
+                        onRefresh = { viewModel.refreshKimiUsage() },
+                        onDismissGuide = { viewModel.dismissCodingPlanGuide() },
+                        onGoSettings = { viewModel.navigateTo(Screen.SETTINGS) }
+                    )
                 }
             }
 

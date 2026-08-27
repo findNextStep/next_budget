@@ -9,6 +9,9 @@ import androidx.lifecycle.viewModelScope
 import ai.findnextstep.budget.data.JsonTransactionRepository
 import ai.findnextstep.budget.logic.model.*
 import ai.findnextstep.budget.logic.service.*
+import ai.findnextstep.budget.logic.service.codingplan.CodingPlanException
+import ai.findnextstep.budget.logic.service.codingplan.KimiCodingPlanProvider
+import ai.findnextstep.budget.logic.service.codingplan.KimiUsageParser
 import ai.findnextstep.budget.ui.service.FloatingExpenseService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,7 +43,13 @@ data class BudgetUiState(
     val floatingCategory: Category? = null,
     val isLoading: Boolean = false,
     val editingTransaction: Transaction? = null,
-    val dayDetailDate: String? = null
+    val dayDetailDate: String? = null,
+    // ── Coding Plan 用量 ──
+    val kimiApiKey: String = "",
+    val kimiUsage: UsageSnapshot? = null,
+    val kimiUsageLoading: Boolean = false,
+    val kimiUsageError: String? = null,
+    val codingPlanGuideDismissed: Boolean = false
 )
 
 enum class ThemeMode(val label: String) {
@@ -70,6 +79,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val salaryService = SalaryService(repository)
     val categoryPredictor = CategoryPredictor(repository)
     val csvService = CsvService()
+    private val kimiProvider = KimiCodingPlanProvider()
 
     // ── UI 状态 ──
     private val _uiState = MutableStateFlow(BudgetUiState())
@@ -119,7 +129,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 todayDailySalary = salaryService.getTodayDailySalary(),
                 themeMode = themeMode,
                 floatingWindowEnabled = floatingEnabled,
-                hideHint = hideHint
+                hideHint = hideHint,
+                kimiApiKey = prefs.getString(PREF_KIMI_API_KEY, "") ?: "",
+                kimiUsage = loadCachedKimiUsage(),
+                codingPlanGuideDismissed = prefs.getBoolean(PREF_CODING_PLAN_GUIDE_DISMISSED, false)
             )
         }
 
@@ -325,6 +338,39 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(hideHint = hide) }
     }
 
+    // ── Coding Plan 用量 ──
+
+    /** 保存 Kimi Code API Key */
+    fun setKimiApiKey(key: String) {
+        val trimmed = key.trim()
+        prefs.edit().putString(PREF_KIMI_API_KEY, trimmed).apply()
+        _uiState.update { it.copy(kimiApiKey = trimmed, kimiUsageError = null) }
+    }
+
+    /** 关闭主页 Coding Plan 配置引导卡片 */
+    fun dismissCodingPlanGuide() {
+        prefs.edit().putBoolean(PREF_CODING_PLAN_GUIDE_DISMISSED, true).apply()
+        _uiState.update { it.copy(codingPlanGuideDismissed = true) }
+    }
+
+    /** 手动刷新 Kimi Coding Plan 用量 */
+    fun refreshKimiUsage() {
+        val key = _uiState.value.kimiApiKey
+        if (key.isEmpty() || _uiState.value.kimiUsageLoading) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(kimiUsageLoading = true, kimiUsageError = null) }
+            try {
+                val snapshot = kimiProvider.fetchUsage(key)
+                cacheKimiUsage(snapshot)
+                _uiState.update { it.copy(kimiUsage = snapshot, kimiUsageLoading = false) }
+            } catch (e: CodingPlanException) {
+                _uiState.update { it.copy(kimiUsageLoading = false, kimiUsageError = e.message) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(kimiUsageLoading = false, kimiUsageError = "查询失败：${e.message}") }
+            }
+        }
+    }
+
     /** 切换悬浮窗开关 */
     fun toggleFloatingWindow(enabled: Boolean) {
         val app = getApplication<Application>()
@@ -421,8 +467,34 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(periodStatistics = stats) }
     }
 
+    // ── Coding Plan 用量缓存（保存原始响应 + 查询时间） ──
+
+    private fun cacheKimiUsage(snapshot: UsageSnapshot) {
+        prefs.edit()
+            .putString(PREF_KIMI_USAGE_CACHE, snapshot.rawJson)
+            .putLong(PREF_KIMI_USAGE_FETCHED_AT, snapshot.fetchedAtMillis)
+            .apply()
+    }
+
+    private fun loadCachedKimiUsage(): UsageSnapshot? {
+        val raw = prefs.getString(PREF_KIMI_USAGE_CACHE, null) ?: return null
+        val fetchedAt = prefs.getLong(PREF_KIMI_USAGE_FETCHED_AT, 0L)
+        return try {
+            KimiUsageParser.parse(raw, fetchedAt)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
+    }
+
+    companion object {
+        const val PREF_KIMI_API_KEY = "kimi_api_key"
+        const val PREF_KIMI_USAGE_CACHE = "kimi_usage_cache"
+        const val PREF_KIMI_USAGE_FETCHED_AT = "kimi_usage_fetched_at"
+        const val PREF_CODING_PLAN_GUIDE_DISMISSED = "coding_plan_guide_dismissed"
     }
 }
