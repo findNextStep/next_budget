@@ -17,7 +17,7 @@
 - **日详情钻取**：周/月/年视图点击某天展开当日交易列表，支持返回上层
 - **快捷开关磁贴**：通知栏一键开关悬浮记账
 - **CSV 导入导出**：批量导入历史账目，导出当前全部记录
-- **Coding Plan 用量**：主页卡片展示 Kimi Code（Coding Plan 订阅）用量，手动刷新，未配置时可关闭引导
+- **Coding Plan 用量**：主页卡片展示 Kimi Code / GLM（智谱）/ DeepSeek 的用量与余额，手动刷新，未配置时可关闭引导
 - **深色/纯黑主题**：适配不同使用场景
 
 ## 技术栈
@@ -53,8 +53,14 @@ app/src/main/java/ai/findnextstep/budget/
 │   │   ├── CsvService.kt
 │   │   └── codingplan/
 │   │       ├── CodingPlanProvider.kt
+│   │       ├── CodingPlanProviders.kt
+│   │       ├── CodingPlanHttp.kt
 │   │       ├── KimiCodingPlanProvider.kt
-│   │       └── KimiUsageParser.kt
+│   │       ├── KimiUsageParser.kt
+│   │       ├── GlmCodingPlanProvider.kt
+│   │       ├── GlmUsageParser.kt
+│   │       ├── DeepSeekBalanceProvider.kt
+│   │       └── DeepSeekBalanceParser.kt
 │   └── util/
 │       └── DateUtils.kt
 ├── data/

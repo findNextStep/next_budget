@@ -3,8 +3,6 @@ package ai.findnextstep.budget.logic.service.codingplan
 import ai.findnextstep.budget.logic.model.UsageSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Kimi Code（Coding Plan 订阅）用量查询。
@@ -17,40 +15,33 @@ class KimiCodingPlanProvider(
 ) : CodingPlanProvider {
 
     override val id: String = "kimi"
+    override val displayName: String = "Kimi Code"
 
     override suspend fun fetchUsage(apiKey: String): UsageSnapshot = withContext(Dispatchers.IO) {
-        val body = get("$baseUrl/usages", apiKey)
-            ?: get("$baseUrl/usage", apiKey) // 兼容旧路径
-            ?: throw CodingPlanException("未找到用量接口（404），接口可能已变更")
-        KimiUsageParser.parse(body, System.currentTimeMillis())
+        val headers = mapOf(
+            "Authorization" to "Bearer $apiKey",
+            "User-Agent" to "KimiCLI/1.6"
+        )
+        val (code, body) = CodingPlanHttp.get("$baseUrl/usages", headers)
+        when (code) {
+            200 -> KimiUsageParser.parse(body, System.currentTimeMillis())
+            404 -> fetchFallback(headers)
+            401 -> throw CodingPlanException("API Key 认证失败（401），请确认使用 Kimi Code 控制台的 sk-kimi- 开头 Key")
+            403 -> throw CodingPlanException("API 拒绝访问（403），请检查 Key 权限")
+            429 -> throw CodingPlanException("请求过于频繁（429），请稍后重试")
+            else -> throw CodingPlanException("查询失败（HTTP $code）")
+        }
     }
 
-    /** 成功返回响应体；404 返回 null 以尝试回退路径；其他错误抛异常 */
-    private fun get(url: String, apiKey: String): String? {
-        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = 10_000
-            readTimeout = 10_000
-            setRequestProperty("Authorization", "Bearer $apiKey")
-            setRequestProperty("User-Agent", "KimiCLI/1.6")
-        }
-        try {
-            when (val code = conn.responseCode) {
-                200 -> return conn.inputStream.bufferedReader().use { it.readText() }
-                404 -> return null
-                401 -> throw CodingPlanException("API Key 认证失败（401），请确认使用 Kimi Code 控制台的 sk-kimi- 开头 Key")
-                403 -> throw CodingPlanException("API 拒绝访问（403），请检查 Key 权限")
-                429 -> throw CodingPlanException("请求过于频繁（429），请稍后重试")
-                else -> throw CodingPlanException("查询失败（HTTP $code）")
-            }
-        } catch (e: CodingPlanException) {
-            throw e
-        } catch (e: java.io.IOException) {
-            throw CodingPlanException("网络错误：${e.message ?: "请检查网络连接"}")
-        } finally {
-            conn.disconnect()
-        }
+    /** 兼容旧路径 /usage */
+    private fun fetchFallback(headers: Map<String, String>): UsageSnapshot {
+        val (code, body) = CodingPlanHttp.get("$baseUrl/usage", headers)
+        if (code != 200) throw CodingPlanException("未找到用量接口（$code），接口可能已变更")
+        return KimiUsageParser.parse(body, System.currentTimeMillis())
     }
+
+    override fun parse(json: String, fetchedAtMillis: Long): UsageSnapshot =
+        KimiUsageParser.parse(json, fetchedAtMillis)
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.kimi.com/coding/v1"

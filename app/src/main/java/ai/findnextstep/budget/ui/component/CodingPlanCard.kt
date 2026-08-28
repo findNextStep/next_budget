@@ -20,27 +20,17 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 主页 Coding Plan 用量卡片。
- * 未配置 Key 且引导未关闭时显示配置引导；已配置时显示用量与手动刷新。
+ * 主页 Coding Plan 用量卡片（单个平台）。
+ * 由外层判断何时展示：平台已配置 API Key 时展示。
  */
 @Composable
 fun CodingPlanCard(
-    apiKey: String,
+    title: String,
     usage: UsageSnapshot?,
     loading: Boolean,
     error: String?,
-    guideDismissed: Boolean,
-    onRefresh: () -> Unit,
-    onDismissGuide: () -> Unit,
-    onGoSettings: () -> Unit
+    onRefresh: () -> Unit
 ) {
-    if (apiKey.isEmpty()) {
-        if (!guideDismissed) {
-            GuideCard(onGoSettings = onGoSettings, onDismiss = onDismissGuide)
-        }
-        return
-    }
-
     Card(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -51,7 +41,7 @@ fun CodingPlanCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Kimi Coding Plan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 if (loading) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
@@ -69,6 +59,10 @@ fun CodingPlanCard(
                 usage.limits.forEach { limit ->
                     Spacer(modifier = Modifier.height(8.dp))
                     UsageRow(limit)
+                }
+                usage.balances.forEach { balance ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    BalanceRow(balance.currency, balance.total, balance.granted)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -93,8 +87,9 @@ fun CodingPlanCard(
     }
 }
 
+/** 未配置任何平台 Key 时的引导卡片，可关闭 */
 @Composable
-private fun GuideCard(onGoSettings: () -> Unit, onDismiss: () -> Unit) {
+fun CodingPlanGuideCard(onGoSettings: () -> Unit, onDismiss: () -> Unit) {
     Card(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -111,7 +106,7 @@ private fun GuideCard(onGoSettings: () -> Unit, onDismiss: () -> Unit) {
                 }
             }
             Text(
-                "配置 Kimi Code API Key 后，可在此查看 Coding Plan 订阅用量",
+                "配置 Kimi Code / GLM / DeepSeek 的 API Key 后，可在此查看各平台用量与余额",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
@@ -131,10 +126,12 @@ private fun UsageRow(limit: UsageLimit) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(limit.label, style = MaterialTheme.typography.bodyMedium)
-        Text(
-            "${(percent * 100).toInt()}%（${formatCount(limit.used)}/${formatCount(limit.limit)}）",
-            style = MaterialTheme.typography.bodyMedium
-        )
+        val valueText = if (limit.limit > 0) {
+            "${(percent * 100).toInt()}%（${formatCount(limit.used)}/${formatCount(limit.limit)}）"
+        } else {
+            "${(percent * 100).toInt()}%"
+        }
+        Text(valueText, style = MaterialTheme.typography.bodyMedium)
     }
     Spacer(modifier = Modifier.height(4.dp))
     LinearProgressIndicator(
@@ -152,6 +149,25 @@ private fun UsageRow(limit: UsageLimit) {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
         }
+    }
+}
+
+@Composable
+private fun BalanceRow(currency: String, total: String, granted: String?) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("余额（$currency）", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            if (granted != null && granted != "0.00" && granted != "0")
+                "$total（含赠金 $granted）"
+            else
+                total,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

@@ -158,21 +158,26 @@ fun SettingsScreen(
             // ── Coding Plan 用量 ──
             Text("Coding Plan 用量", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-            var kimiKeyStr by remember { mutableStateOf(uiState.kimiApiKey) }
-            OutlinedTextField(
-                value = kimiKeyStr,
-                onValueChange = { newVal ->
-                    kimiKeyStr = newVal.trim()
-                    viewModel.setKimiApiKey(kimiKeyStr)
-                },
-                label = { Text("Kimi Code API Key") },
-                placeholder = { Text("sk-kimi-...") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
+            CodingPlanKeyField(
+                label = "Kimi Code API Key",
+                placeholder = "sk-kimi-...",
+                value = uiState.codingPlanApiKeys["kimi"].orEmpty(),
+                onValueChange = { viewModel.setCodingPlanApiKey("kimi", it) }
+            )
+            CodingPlanKeyField(
+                label = "GLM（智谱）API Key",
+                placeholder = "智谱开放平台 API Key",
+                value = uiState.codingPlanApiKeys["glm"].orEmpty(),
+                onValueChange = { viewModel.setCodingPlanApiKey("glm", it) }
+            )
+            CodingPlanKeyField(
+                label = "DeepSeek API Key",
+                placeholder = "sk-...",
+                value = uiState.codingPlanApiKeys["deepseek"].orEmpty(),
+                onValueChange = { viewModel.setCodingPlanApiKey("deepseek", it) }
             )
             Text(
-                "在 Kimi Code 控制台创建 sk-kimi- 开头的 Key；配置后主页可手动刷新查看用量",
+                "配置后主页会出现对应平台卡片，可手动刷新查看用量/余额",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -348,4 +353,23 @@ fun SettingsScreen(
             }
         )
     }
+}
+
+/** Coding Plan 平台 API Key 输入框（密码掩码） */
+@Composable
+private fun CodingPlanKeyField(
+    label: String,
+    placeholder: String,
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        placeholder = { Text(placeholder) },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        modifier = Modifier.fillMaxWidth()
+    )
 }

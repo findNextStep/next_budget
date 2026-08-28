@@ -10,8 +10,7 @@ import ai.findnextstep.budget.data.JsonTransactionRepository
 import ai.findnextstep.budget.logic.model.*
 import ai.findnextstep.budget.logic.service.*
 import ai.findnextstep.budget.logic.service.codingplan.CodingPlanException
-import ai.findnextstep.budget.logic.service.codingplan.KimiCodingPlanProvider
-import ai.findnextstep.budget.logic.service.codingplan.KimiUsageParser
+import ai.findnextstep.budget.logic.service.codingplan.CodingPlanProviders
 import ai.findnextstep.budget.ui.service.FloatingExpenseService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,11 +44,18 @@ data class BudgetUiState(
     val editingTransaction: Transaction? = null,
     val dayDetailDate: String? = null,
     // ── Coding Plan 用量 ──
-    val kimiApiKey: String = "",
-    val kimiUsage: UsageSnapshot? = null,
-    val kimiUsageLoading: Boolean = false,
-    val kimiUsageError: String? = null,
+    /** 各平台 API Key，key 为 provider id（kimi/glm/deepseek） */
+    val codingPlanApiKeys: Map<String, String> = emptyMap(),
+    /** 各平台用量状态 */
+    val codingPlanStates: Map<String, ProviderUsageState> = emptyMap(),
     val codingPlanGuideDismissed: Boolean = false
+)
+
+/** 单个平台的用量查询状态 */
+data class ProviderUsageState(
+    val snapshot: UsageSnapshot? = null,
+    val loading: Boolean = false,
+    val error: String? = null
 )
 
 enum class ThemeMode(val label: String) {
@@ -79,7 +85,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val salaryService = SalaryService(repository)
     val categoryPredictor = CategoryPredictor(repository)
     val csvService = CsvService()
-    private val kimiProvider = KimiCodingPlanProvider()
 
     // ── UI 状态 ──
     private val _uiState = MutableStateFlow(BudgetUiState())
@@ -130,8 +135,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 themeMode = themeMode,
                 floatingWindowEnabled = floatingEnabled,
                 hideHint = hideHint,
-                kimiApiKey = prefs.getString(PREF_KIMI_API_KEY, "") ?: "",
-                kimiUsage = loadCachedKimiUsage(),
+                codingPlanApiKeys = loadCodingPlanApiKeys(),
+                codingPlanStates = loadCachedCodingPlanStates(),
                 codingPlanGuideDismissed = prefs.getBoolean(PREF_CODING_PLAN_GUIDE_DISMISSED, false)
             )
         }
@@ -340,11 +345,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── Coding Plan 用量 ──
 
-    /** 保存 Kimi Code API Key */
-    fun setKimiApiKey(key: String) {
+    /** 保存某平台的 API Key */
+    fun setCodingPlanApiKey(providerId: String, key: String) {
         val trimmed = key.trim()
-        prefs.edit().putString(PREF_KIMI_API_KEY, trimmed).apply()
-        _uiState.update { it.copy(kimiApiKey = trimmed, kimiUsageError = null) }
+        prefs.edit().putString(prefApiKey(providerId), trimmed).apply()
+        _uiState.update {
+            it.copy(codingPlanApiKeys = it.codingPlanApiKeys + (providerId to trimmed))
+        }
+        clearProviderError(providerId)
     }
 
     /** 关闭主页 Coding Plan 配置引导卡片 */
@@ -353,20 +361,21 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(codingPlanGuideDismissed = true) }
     }
 
-    /** 手动刷新 Kimi Coding Plan 用量 */
-    fun refreshKimiUsage() {
-        val key = _uiState.value.kimiApiKey
-        if (key.isEmpty() || _uiState.value.kimiUsageLoading) return
+    /** 手动刷新某平台用量 */
+    fun refreshProviderUsage(providerId: String) {
+        val provider = CodingPlanProviders.byId(providerId) ?: return
+        val key = _uiState.value.codingPlanApiKeys[providerId].orEmpty()
+        if (key.isEmpty() || _uiState.value.codingPlanStates[providerId]?.loading == true) return
         viewModelScope.launch {
-            _uiState.update { it.copy(kimiUsageLoading = true, kimiUsageError = null) }
+            updateProviderState(providerId) { it.copy(loading = true, error = null) }
             try {
-                val snapshot = kimiProvider.fetchUsage(key)
-                cacheKimiUsage(snapshot)
-                _uiState.update { it.copy(kimiUsage = snapshot, kimiUsageLoading = false) }
+                val snapshot = provider.fetchUsage(key)
+                cacheProviderUsage(providerId, snapshot)
+                updateProviderState(providerId) { it.copy(snapshot = snapshot, loading = false) }
             } catch (e: CodingPlanException) {
-                _uiState.update { it.copy(kimiUsageLoading = false, kimiUsageError = e.message) }
+                updateProviderState(providerId) { it.copy(loading = false, error = e.message) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(kimiUsageLoading = false, kimiUsageError = "查询失败：${e.message}") }
+                updateProviderState(providerId) { it.copy(loading = false, error = "查询失败：${e.message}") }
             }
         }
     }
@@ -469,21 +478,38 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── Coding Plan 用量缓存（保存原始响应 + 查询时间） ──
 
-    private fun cacheKimiUsage(snapshot: UsageSnapshot) {
-        prefs.edit()
-            .putString(PREF_KIMI_USAGE_CACHE, snapshot.rawJson)
-            .putLong(PREF_KIMI_USAGE_FETCHED_AT, snapshot.fetchedAtMillis)
-            .apply()
+    private fun updateProviderState(providerId: String, transform: (ProviderUsageState) -> ProviderUsageState) {
+        _uiState.update { state ->
+            val current = state.codingPlanStates[providerId] ?: ProviderUsageState()
+            state.copy(codingPlanStates = state.codingPlanStates + (providerId to transform(current)))
+        }
     }
 
-    private fun loadCachedKimiUsage(): UsageSnapshot? {
-        val raw = prefs.getString(PREF_KIMI_USAGE_CACHE, null) ?: return null
-        val fetchedAt = prefs.getLong(PREF_KIMI_USAGE_FETCHED_AT, 0L)
-        return try {
-            KimiUsageParser.parse(raw, fetchedAt)
-        } catch (_: Exception) {
-            null
-        }
+    private fun clearProviderError(providerId: String) {
+        updateProviderState(providerId) { it.copy(error = null) }
+    }
+
+    private fun loadCodingPlanApiKeys(): Map<String, String> =
+        CodingPlanProviders.all.mapNotNull { p ->
+            prefs.getString(prefApiKey(p.id), null)?.takeIf { it.isNotEmpty() }?.let { p.id to it }
+        }.toMap()
+
+    private fun loadCachedCodingPlanStates(): Map<String, ProviderUsageState> =
+        CodingPlanProviders.all.mapNotNull { p ->
+            val raw = prefs.getString(prefUsageCache(p.id), null) ?: return@mapNotNull null
+            val fetchedAt = prefs.getLong(prefUsageFetchedAt(p.id), 0L)
+            try {
+                p.id to ProviderUsageState(snapshot = p.parse(raw, fetchedAt))
+            } catch (_: Exception) {
+                null
+            }
+        }.toMap()
+
+    private fun cacheProviderUsage(providerId: String, snapshot: UsageSnapshot) {
+        prefs.edit()
+            .putString(prefUsageCache(providerId), snapshot.rawJson)
+            .putLong(prefUsageFetchedAt(providerId), snapshot.fetchedAtMillis)
+            .apply()
     }
 
     override fun onCleared() {
@@ -492,9 +518,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     companion object {
-        const val PREF_KIMI_API_KEY = "kimi_api_key"
-        const val PREF_KIMI_USAGE_CACHE = "kimi_usage_cache"
-        const val PREF_KIMI_USAGE_FETCHED_AT = "kimi_usage_fetched_at"
         const val PREF_CODING_PLAN_GUIDE_DISMISSED = "coding_plan_guide_dismissed"
+
+        fun prefApiKey(providerId: String) = "${providerId}_api_key"
+        fun prefUsageCache(providerId: String) = "${providerId}_usage_cache"
+        fun prefUsageFetchedAt(providerId: String) = "${providerId}_usage_fetched_at"
     }
 }

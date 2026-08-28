@@ -14,8 +14,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.findnextstep.budget.logic.model.Category
+import ai.findnextstep.budget.logic.service.codingplan.CodingPlanProviders
 import ai.findnextstep.budget.logic.util.dayEpochMillisRange
 import ai.findnextstep.budget.ui.component.CodingPlanCard
+import ai.findnextstep.budget.ui.component.CodingPlanGuideCard
 import ai.findnextstep.budget.ui.theme.ExpenseRed
 import ai.findnextstep.budget.ui.theme.IncomeGreen
 import ai.findnextstep.budget.ui.viewmodel.BudgetUiState
@@ -79,17 +81,28 @@ fun MainScreen(
                 }
 
                 // ── Coding Plan 用量 ──
-                item {
-                    CodingPlanCard(
-                        apiKey = uiState.kimiApiKey,
-                        usage = uiState.kimiUsage,
-                        loading = uiState.kimiUsageLoading,
-                        error = uiState.kimiUsageError,
-                        guideDismissed = uiState.codingPlanGuideDismissed,
-                        onRefresh = { viewModel.refreshKimiUsage() },
-                        onDismissGuide = { viewModel.dismissCodingPlanGuide() },
-                        onGoSettings = { viewModel.navigateTo(Screen.SETTINGS) }
-                    )
+                CodingPlanProviders.all.forEach { provider ->
+                    val key = uiState.codingPlanApiKeys[provider.id].orEmpty()
+                    if (key.isNotEmpty()) {
+                        item(key = "coding_plan_${provider.id}") {
+                            val state = uiState.codingPlanStates[provider.id]
+                            CodingPlanCard(
+                                title = provider.displayName,
+                                usage = state?.snapshot,
+                                loading = state?.loading == true,
+                                error = state?.error,
+                                onRefresh = { viewModel.refreshProviderUsage(provider.id) }
+                            )
+                        }
+                    }
+                }
+                if (uiState.codingPlanApiKeys.values.all { it.isEmpty() } && !uiState.codingPlanGuideDismissed) {
+                    item(key = "coding_plan_guide") {
+                        CodingPlanGuideCard(
+                            onGoSettings = { viewModel.navigateTo(Screen.SETTINGS) },
+                            onDismiss = { viewModel.dismissCodingPlanGuide() }
+                        )
+                    }
                 }
             }
 
