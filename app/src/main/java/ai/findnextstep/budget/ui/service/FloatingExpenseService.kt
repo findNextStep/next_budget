@@ -727,7 +727,7 @@ private fun ExpandedPanel(
 
             if (selectedCategory != null && amount.isNotEmpty()) {
                 Text(
-                    "推断: ${selectedCategory.displayName}",
+                    "推断: ${selectedCategory.label}",
                     color = Color.White.copy(alpha = 0.5f),
                     fontSize = 12.sp
                 )
@@ -775,7 +775,7 @@ private fun ExpandedPanel(
             // 快捷类型选择
             val quickCategories = listOf(
                 Category.FOOD, Category.TRAFFIC, Category.SHOPPING,
-                Category.RESTAURANT, Category.PARTY, Category.OTHER
+                Category.PARTY, Category.OTHER
             )
 
             Row(
@@ -799,7 +799,7 @@ private fun ExpandedPanel(
                         color = if (isSel) baseColor else fgColor.copy(alpha = 0.22f)
                     ) {
                         Text(
-                            cat.displayName,
+                            cat.label,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             color = if (isSel) Color.White else fgColor,
                             fontSize = 12.sp

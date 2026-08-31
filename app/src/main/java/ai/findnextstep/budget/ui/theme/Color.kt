@@ -49,7 +49,6 @@ val CategorySnack = Color(0xFF8D6E63)          // 零食 — 棕色
 val CategoryRent = Color(0xFFC62828)           // 房租 — 深红（大额支出）
 val CategoryTraffic = Color(0xFF283593)        // 交通 — 靛蓝
 val CategoryShopping = Color(0xFF6A1B9A)       // 购物 — 紫色
-val CategoryRestaurant = Color(0xFFD84315)     // 餐饮 — 橙红（热食）
 val CategoryParty = Color(0xFFAD1457)          // 聚会 — 粉色
 val CategoryGift = Color(0xFFC2185B)           // 礼品 — 玫红
 val CategoryDonation = Color(0xFF4527A0)       // 捐赠 — 深紫
@@ -71,7 +70,6 @@ val CategoryColorMap: Map<String, Color> = mapOf(
     "RENT" to CategoryRent,
     "TRAFFIC" to CategoryTraffic,
     "SHOPPING" to CategoryShopping,
-    "RESTAURANT" to CategoryRestaurant,
     "PARTY" to CategoryParty,
     "GIFT" to CategoryGift,
     "DONATION" to CategoryDonation,

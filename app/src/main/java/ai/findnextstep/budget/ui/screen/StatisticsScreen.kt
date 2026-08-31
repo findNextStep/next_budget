@@ -283,12 +283,16 @@ private fun TransactionSummaryRow(
                 modifier = Modifier.size(32.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        txn.category.displayName.take(1),
-                        color = catColor,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
+                    if (txn.category.emoji.isNotEmpty()) {
+                        Text(txn.category.emoji, fontSize = 16.sp)
+                    } else {
+                        Text(
+                            txn.category.displayName.take(1),
+                            color = catColor,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.width(10.dp))
@@ -481,7 +485,7 @@ private fun CategoryPieChart(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            cat.category.displayName,
+                            cat.category.label,
                             style = MaterialTheme.typography.bodyMedium,
                             maxLines = 1
                         )
@@ -572,7 +576,7 @@ private fun DaySummaryRow(day: DaySummary, period: Period, onClick: (() -> Unit)
                             modifier = Modifier.padding(end = 4.dp)
                         ) {
                             Text(
-                                cat.category.displayName,
+                                cat.category.label,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                 color = catColor,
                                 style = MaterialTheme.typography.labelSmall

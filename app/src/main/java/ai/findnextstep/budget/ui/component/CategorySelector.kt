@@ -86,9 +86,13 @@ private fun CategoryChip(
         tonalElevation = if (isSelected) 4.dp else 0.dp
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            if (category.emoji.isNotEmpty()) {
+                Text(text = category.emoji, fontSize = 20.sp, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(2.dp))
+            }
             Text(
                 text = category.displayName,
                 color = textColor,

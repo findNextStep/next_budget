@@ -298,7 +298,7 @@ private fun QuickExpenseDialog(
                 if (predictedCategory != null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "推断类型: ${predictedCategory.displayName}",
+                        "推断类型: ${predictedCategory.label}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
