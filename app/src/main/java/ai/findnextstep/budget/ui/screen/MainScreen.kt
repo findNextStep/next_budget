@@ -34,6 +34,11 @@ fun MainScreen(
     var showQuickExpense by remember { mutableStateOf(false) }
     var quickAmount by remember { mutableStateOf("") }
 
+    // 打开主页时自动刷新超过 24 小时未更新的 Coding Plan 用量
+    LaunchedEffect(Unit) {
+        viewModel.autoRefreshStaleProviders()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -91,6 +96,7 @@ fun MainScreen(
                                 usage = state?.snapshot,
                                 loading = state?.loading == true,
                                 error = state?.error,
+                                balanceProgressMax = uiState.balanceProgressMax,
                                 onRefresh = { viewModel.refreshProviderUsage(provider.id) }
                             )
                         }

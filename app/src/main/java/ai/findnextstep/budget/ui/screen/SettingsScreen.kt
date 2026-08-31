@@ -176,8 +176,21 @@ fun SettingsScreen(
                 value = uiState.codingPlanApiKeys["deepseek"].orEmpty(),
                 onValueChange = { viewModel.setCodingPlanApiKey("deepseek", it) }
             )
+            var balanceMaxStr by remember {
+                mutableStateOf(uiState.balanceProgressMax.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() })
+            }
+            OutlinedTextField(
+                value = balanceMaxStr,
+                onValueChange = { newVal ->
+                    balanceMaxStr = newVal.filter { it.isDigit() || it == '.' }
+                    balanceMaxStr.toDoubleOrNull()?.let { viewModel.setBalanceProgressMax(it) }
+                },
+                label = { Text("余额进度条上限（元）") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
             Text(
-                "配置后主页会出现对应平台卡片，可手动刷新查看用量/余额",
+                "余额达到上限视为充足仅显示数字，低于上限展示剩余进度条；配置后主页会出现对应平台卡片，可手动刷新查看用量/余额",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )

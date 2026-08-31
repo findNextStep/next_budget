@@ -48,7 +48,9 @@ data class BudgetUiState(
     val codingPlanApiKeys: Map<String, String> = emptyMap(),
     /** 各平台用量状态 */
     val codingPlanStates: Map<String, ProviderUsageState> = emptyMap(),
-    val codingPlanGuideDismissed: Boolean = false
+    val codingPlanGuideDismissed: Boolean = false,
+    /** 余额进度条上限（元），达到该值视为充足 */
+    val balanceProgressMax: Double = BudgetViewModel.DEFAULT_BALANCE_PROGRESS_MAX
 )
 
 /** 单个平台的用量查询状态 */
@@ -137,7 +139,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 hideHint = hideHint,
                 codingPlanApiKeys = loadCodingPlanApiKeys(),
                 codingPlanStates = loadCachedCodingPlanStates(),
-                codingPlanGuideDismissed = prefs.getBoolean(PREF_CODING_PLAN_GUIDE_DISMISSED, false)
+                codingPlanGuideDismissed = prefs.getBoolean(PREF_CODING_PLAN_GUIDE_DISMISSED, false),
+                balanceProgressMax = prefs.getFloat(PREF_BALANCE_PROGRESS_MAX, DEFAULT_BALANCE_PROGRESS_MAX.toFloat()).toDouble()
             )
         }
 
@@ -361,6 +364,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(codingPlanGuideDismissed = true) }
     }
 
+    /** 设置余额进度条上限（元） */
+    fun setBalanceProgressMax(max: Double) {
+        if (max <= 0) return
+        prefs.edit().putFloat(PREF_BALANCE_PROGRESS_MAX, max.toFloat()).apply()
+        _uiState.update { it.copy(balanceProgressMax = max) }
+    }
+
     /** 手动刷新某平台用量 */
     fun refreshProviderUsage(providerId: String) {
         val provider = CodingPlanProviders.byId(providerId) ?: return
@@ -376,6 +386,19 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 updateProviderState(providerId) { it.copy(loading = false, error = e.message) }
             } catch (e: Exception) {
                 updateProviderState(providerId) { it.copy(loading = false, error = "查询失败：${e.message}") }
+            }
+        }
+    }
+
+    /** 打开主页时调用：距上次刷新超过 24 小时（或从未刷新）的平台自动刷新一次 */
+    fun autoRefreshStaleProviders() {
+        val now = System.currentTimeMillis()
+        CodingPlanProviders.all.forEach { provider ->
+            val key = _uiState.value.codingPlanApiKeys[provider.id].orEmpty()
+            if (key.isEmpty()) return@forEach
+            val fetchedAt = _uiState.value.codingPlanStates[provider.id]?.snapshot?.fetchedAtMillis ?: 0L
+            if (now - fetchedAt > PROVIDER_AUTO_REFRESH_INTERVAL_MILLIS) {
+                refreshProviderUsage(provider.id)
             }
         }
     }
@@ -519,6 +542,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     companion object {
         const val PREF_CODING_PLAN_GUIDE_DISMISSED = "coding_plan_guide_dismissed"
+        const val PREF_BALANCE_PROGRESS_MAX = "balance_progress_max"
+
+        /** 余额进度条默认上限（元） */
+        const val DEFAULT_BALANCE_PROGRESS_MAX = 30.0
+
+        /** Coding Plan 自动刷新间隔（24 小时） */
+        const val PROVIDER_AUTO_REFRESH_INTERVAL_MILLIS = 24 * 60 * 60 * 1000L
 
         fun prefApiKey(providerId: String) = "${providerId}_api_key"
         fun prefUsageCache(providerId: String) = "${providerId}_usage_cache"

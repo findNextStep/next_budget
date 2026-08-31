@@ -36,6 +36,7 @@ val BlackError = Color(0xFFCF6679)
 // ── 通用 ──
 val IncomeGreen = Color(0xFF4CAF50)
 val ExpenseRed = Color(0xFFF44336)
+val WarningYellow = Color(0xFFF9A825)
 // ── 分类颜色 ──
 // 按用途区分，语义化配色
 val CategorySalaries = Color(0xFF2E7D32)       // 薪水 — 稳重深绿

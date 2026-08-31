@@ -15,6 +15,7 @@ import ai.findnextstep.budget.logic.model.UsageLimit
 import ai.findnextstep.budget.logic.model.UsageSnapshot
 import ai.findnextstep.budget.ui.theme.ExpenseRed
 import ai.findnextstep.budget.ui.theme.IncomeGreen
+import ai.findnextstep.budget.ui.theme.WarningYellow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -29,6 +30,7 @@ fun CodingPlanCard(
     usage: UsageSnapshot?,
     loading: Boolean,
     error: String?,
+    balanceProgressMax: Double,
     onRefresh: () -> Unit
 ) {
     Card(
@@ -62,7 +64,7 @@ fun CodingPlanCard(
                 }
                 usage.balances.forEach { balance ->
                     Spacer(modifier = Modifier.height(8.dp))
-                    BalanceRow(balance.currency, balance.total, balance.granted)
+                    BalanceRow(balance.currency, balance.total, balance.granted, balanceProgressMax)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -137,7 +139,7 @@ private fun UsageRow(limit: UsageLimit) {
     LinearProgressIndicator(
         progress = { percent },
         modifier = Modifier.fillMaxWidth(),
-        color = if (percent < 0.6f) IncomeGreen else ExpenseRed
+        color = usageProgressColor(percent)
     )
     limit.resetAtMillis?.let { resetAt ->
         val diffMillis = resetAt - System.currentTimeMillis()
@@ -153,7 +155,7 @@ private fun UsageRow(limit: UsageLimit) {
 }
 
 @Composable
-private fun BalanceRow(currency: String, total: String, granted: String?) {
+private fun BalanceRow(currency: String, total: String, granted: String?, balanceProgressMax: Double) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -169,6 +171,24 @@ private fun BalanceRow(currency: String, total: String, granted: String?) {
             fontWeight = FontWeight.Bold
         )
     }
+    // 余额低于上限时展示剩余进度条，充足（≥上限）时仅显示数字
+    val amount = total.toDoubleOrNull()
+    if (amount != null && balanceProgressMax > 0 && amount < balanceProgressMax) {
+        val remaining = (amount / balanceProgressMax).toFloat().coerceIn(0f, 1f)
+        Spacer(modifier = Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { remaining },
+            modifier = Modifier.fillMaxWidth(),
+            color = usageProgressColor(1f - remaining)
+        )
+    }
+}
+
+/** 用量进度条三段配色：<60% 绿，60%~90% 黄，≥90%（剩余<10%）红 */
+private fun usageProgressColor(usedFraction: Float): androidx.compose.ui.graphics.Color = when {
+    usedFraction < 0.6f -> IncomeGreen
+    usedFraction < 0.9f -> WarningYellow
+    else -> ExpenseRed
 }
 
 private fun formatCount(count: Long): String = when {
