@@ -772,7 +772,7 @@ private fun ExpandedPanel(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // 快捷类型选择
+            // 快捷类型选择（面板仅 280dp，紧凑起见用 emoji 代替文字，「其他」因 emoji 不直观保留文字）
             val quickCategories = listOf(
                 Category.FOOD, Category.TRAFFIC, Category.SHOPPING,
                 Category.PARTY, Category.OTHER
@@ -799,10 +799,10 @@ private fun ExpandedPanel(
                         color = if (isSel) baseColor else fgColor.copy(alpha = 0.22f)
                     ) {
                         Text(
-                            cat.label,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            if (cat.emoji.isNotEmpty() && cat != Category.OTHER) cat.emoji else cat.displayName,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             color = if (isSel) Color.White else fgColor,
-                            fontSize = 12.sp
+                            fontSize = 14.sp
                         )
                     }
                 }

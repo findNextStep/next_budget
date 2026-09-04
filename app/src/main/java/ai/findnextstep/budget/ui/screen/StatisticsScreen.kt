@@ -575,8 +575,9 @@ private fun DaySummaryRow(day: DaySummary, period: Period, onClick: (() -> Unit)
                             color = catColor.copy(alpha = bgAlpha),
                             modifier = Modifier.padding(end = 4.dp)
                         ) {
+                            // 空间紧凑，只显示 emoji；自定义分类无 emoji 时显示名称
                             Text(
-                                cat.category.label,
+                                cat.category.emoji.ifEmpty { cat.category.displayName },
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                 color = catColor,
                                 style = MaterialTheme.typography.labelSmall
