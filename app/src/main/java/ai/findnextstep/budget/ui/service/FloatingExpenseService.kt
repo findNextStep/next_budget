@@ -42,6 +42,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.findnextstep.budget.MainActivity
+import kotlinx.coroutines.delay
 import ai.findnextstep.budget.data.JsonTransactionRepository
 import ai.findnextstep.budget.logic.model.Category
 import ai.findnextstep.budget.logic.model.Transaction
@@ -90,6 +92,16 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
     private var bubbleX = 0
     private var bubbleY = 300
 
+    // 气泡吸附的边缘方向（-1 左，1 右），用于渐隐时向边缘偏移
+    private val edgeDirState = mutableStateOf(0)
+
+    /** 吸附到最近的边缘并记录方向 */
+    private fun snapToEdgeWithDir(x: Int): Int {
+        val snapped = snapToEdge(x)
+        edgeDirState.value = if (snapped == 0) -1 else 1
+        return snapped
+    }
+
     /** 获取当前屏幕尺寸（像素） */
     private fun getScreenSize(): Pair<Int, Int> {
         val metrics = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -104,7 +116,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
     }
 
     /** 气泡尺寸（像素） */
-    private fun bubbleSizePx(): Int = (44 * resources.displayMetrics.density).toInt()
+    private fun bubbleSizePx(): Int = (32 * resources.displayMetrics.density).toInt()
 
     /** 将气泡比例坐标转换为像素坐标 */
     private fun ratioToPixel(xRatio: Float, yRatio: Float): Pair<Int, Int> {
@@ -187,7 +199,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         val xRatio = prefs.getFloat(PREF_FLOATING_X_RATIO, 0f)
         val yRatio = prefs.getFloat(PREF_FLOATING_Y_RATIO, 0.3f)
         val (px, py) = ratioToPixel(xRatio, yRatio)
-        bubbleX = snapToEdge(px)
+        bubbleX = snapToEdgeWithDir(px)
         bubbleY = py
         hideHintState.value = prefs.getBoolean(PREF_HIDE_HINT, false)
 
@@ -224,7 +236,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
         val xRatio = prefs.getFloat(PREF_FLOATING_X_RATIO, 0f)
         val yRatio = prefs.getFloat(PREF_FLOATING_Y_RATIO, 0.3f)
         val (px, py) = ratioToPixel(xRatio, yRatio)
-        bubbleX = snapToEdge(px)
+        bubbleX = snapToEdgeWithDir(px)
         bubbleY = py
         // 如果当前是收起状态，更新 overlay 位置
         val lp = overlayParams
@@ -355,6 +367,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
                 FloatingWindowContent(
                     startExpanded = startExpanded,
                     todayRatio = ringRatio,
+                    edgeDir = edgeDirState.value,
                     onUpdatePosition = { dx, dy ->
                         val lp = overlayParams
                         if (lp != null) {
@@ -373,7 +386,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
                     },
                     onDragEnd = {
                         // 吸附到左/右边缘
-                        val snappedX = snapToEdge(bubbleX)
+                        val snappedX = snapToEdgeWithDir(bubbleX)
                         val lp = overlayParams
                         if (lp != null) {
                             lp.x = snappedX
@@ -482,6 +495,7 @@ class FloatingExpenseService : Service(), LifecycleOwner, SavedStateRegistryOwne
 private fun FloatingWindowContent(
     startExpanded: Boolean = false,
     todayRatio: Float = 0f,
+    edgeDir: Int = 0,
     onUpdatePosition: (Float, Float) -> Unit,
     onDragEnd: () -> Unit,
     onExpandChanged: (Boolean) -> Unit,
@@ -557,6 +571,7 @@ private fun FloatingWindowContent(
     } else {
         CollapsedBubble(
             ratio = todayRatio,
+            edgeDir = edgeDir,
             onTap = {
                 expanded = true
                 onExpandChanged(true)
@@ -572,6 +587,7 @@ private fun FloatingWindowContent(
 @Composable
 private fun CollapsedBubble(
     ratio: Float = 0f,
+    edgeDir: Int = 0,
     onTap: () -> Unit,
     onDrag: (Float, Float) -> Unit,
     onDragEnd: () -> Unit,
@@ -579,10 +595,22 @@ private fun CollapsedBubble(
 ) {
     var showClose by remember { mutableStateOf(false) }
 
+    // 闲置渐隐：0=完全可见，1=隐身（仅余半透明符号）；任何交互重置计时
+    var interactionTick by remember { mutableStateOf(0) }
+    val fade = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(interactionTick) {
+        fade.animateTo(0f, androidx.compose.animation.core.tween(150))
+        delay(3000)
+        fade.animateTo(1f, androidx.compose.animation.core.tween(800))
+    }
+    val chromeAlpha = 1f - fade.value          // 黑底 + 进度环
+    val symbolAlpha = 1f - 0.6f * fade.value   // ¥ 符号最低保留 40% 可见
+
     Box(
         modifier = Modifier
             .combinedClickable(
                 onClick = {
+                    interactionTick++
                     if (showClose) {
                         onClose()
                         showClose = false
@@ -590,7 +618,10 @@ private fun CollapsedBubble(
                         onTap()
                     }
                 },
-                onLongClick = { showClose = true }
+                onLongClick = {
+                    interactionTick++
+                    showClose = true
+                }
             )
             .pointerInput(Unit) {
                 detectDragGestures(
@@ -601,24 +632,51 @@ private fun CollapsedBubble(
                     onDragCancel = { showClose = false }
                 ) { change, dragAmount ->
                     change.consume()
+                    interactionTick++
                     onDrag(dragAmount.x, dragAmount.y)
                 }
             }
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .shadow(8.dp, CircleShape),
+                .size(32.dp)
+                // 渐隐时向吸附的边缘平移，让符号更贴边
+                .graphicsLayer { translationX = fade.value * edgeDir * 8.dp.toPx() },
             contentAlignment = Alignment.Center
         ) {
-            if (ratio > 0f) {
-                val ringColor = if (ratio < 0.6f) IncomeGreen else ExpenseRed
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val strokeWidth = 3.dp.toPx()
-                    val halfStroke = strokeWidth / 2
-                    val diameter = size.minDimension
-                    val topLeft = Offset(halfStroke, halfStroke)
-                    val arcSize = Size(diameter - strokeWidth, diameter - strokeWidth)
+            // 伪投影 + 轨道底环 + 进度环（同层绘制，随渐隐一起淡出）
+            // 不用 Modifier.shadow：elevation 阴影按图层轮廓绘制、与内容 alpha 无关，
+            // 且部分设备会渲染成多边形光晕
+            Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = chromeAlpha }) {
+                val innerRadius = 13.dp.toPx()
+                // 伪投影：两层下移的浅灰圆模拟柔和阴影
+                drawCircle(
+                    color = Color.Black.copy(alpha = 0.08f),
+                    radius = innerRadius + 1.5.dp.toPx(),
+                    center = center.copy(y = center.y + 1.dp.toPx())
+                )
+                drawCircle(
+                    color = Color.Black.copy(alpha = 0.05f),
+                    radius = innerRadius + 2.5.dp.toPx(),
+                    center = center.copy(y = center.y + 2.dp.toPx())
+                )
+
+                val strokeWidth = 2.5.dp.toPx()
+                val halfStroke = strokeWidth / 2
+                val diameter = size.minDimension
+                val topLeft = Offset(halfStroke, halfStroke)
+                val arcSize = Size(diameter - strokeWidth, diameter - strokeWidth)
+                drawArc(
+                    color = Color.White.copy(alpha = 0.18f),
+                    startAngle = 0f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth)
+                )
+                if (ratio > 0f) {
+                    val ringColor = if (ratio < 0.6f) IncomeGreen else ExpenseRed
                     drawArc(
                         color = ringColor,
                         startAngle = -90f,
@@ -626,23 +684,23 @@ private fun CollapsedBubble(
                         useCenter = false,
                         topLeft = topLeft,
                         size = arcSize,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                     )
                 }
             }
 
             Surface(
                 shape = CircleShape,
-                color = Color.Black.copy(alpha = 0.55f),
-                modifier = Modifier.size(38.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (showClose) {
-                        Text("✕", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    } else {
-                        Text("¥", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                }
+                color = Color.Black.copy(alpha = 0.35f),
+                modifier = Modifier
+                    .size(26.dp)
+                    .graphicsLayer { alpha = chromeAlpha }
+            ) {}
+
+            if (showClose) {
+                Text("✕", fontSize = 12.sp, color = Color.White.copy(alpha = symbolAlpha))
+            } else {
+                Text("¥", fontSize = 14.sp, color = Color.White.copy(alpha = symbolAlpha))
             }
         }
     }
@@ -651,7 +709,7 @@ private fun CollapsedBubble(
     if (!FloatingExpenseService.hideHintState.value) {
     Box(
         modifier = Modifier
-            .padding(top = 48.dp)
+            .padding(top = 36.dp)
             .background(
                 Color.Black.copy(alpha = 0.6f),
                 RoundedCornerShape(4.dp)
