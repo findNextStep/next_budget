@@ -48,6 +48,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -697,11 +698,16 @@ private fun CollapsedBubble(
                     .graphicsLayer { alpha = chromeAlpha }
             ) {}
 
-            if (showClose) {
-                Text("✕", fontSize = 12.sp, color = Color.White.copy(alpha = symbolAlpha))
-            } else {
-                Text("¥", fontSize = 14.sp, color = Color.White.copy(alpha = symbolAlpha))
-            }
+            // 符号 = 白色填充 + 深色细描边：浅色背景下描边保证可见，深色圆盘上描边不可见
+            val symbol = if (showClose) "✕" else "¥"
+            val symbolSize = if (showClose) 12.sp else 14.sp
+            Text(
+                symbol,
+                fontSize = symbolSize,
+                color = Color.Black.copy(alpha = symbolAlpha * 0.6f),
+                style = TextStyle(drawStyle = Stroke(width = 3f))
+            )
+            Text(symbol, fontSize = symbolSize, color = Color.White.copy(alpha = symbolAlpha))
         }
     }
 
